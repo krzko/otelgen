@@ -45,7 +45,7 @@ func genTracesCommand() *cli.Command {
 						return errors.New("'otel-exporter-otlp-endpoint' must be set")
 					}
 
-					cfg := &traces.Config{
+					tracesCfg := &traces.Config{
 						Endpoint:    c.String("otel-exporter-otlp-endpoint"),
 						NumTraces:   1,
 						WorkerCount: 1,
@@ -63,14 +63,14 @@ func genTracesCommand() *cli.Command {
 					))
 
 					grpcExpOpt := []otlptracegrpc.Option{
-						otlptracegrpc.WithEndpoint(cfg.Endpoint),
+						otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),
 						otlptracegrpc.WithDialOption(
 							grpc.WithBlock(),
 						),
 					}
 
 					httpExpOpt := []otlptracehttp.Option{
-						otlptracehttp.WithEndpoint(cfg.Endpoint),
+						otlptracehttp.WithEndpoint(tracesCfg.Endpoint),
 					}
 
 					if c.Bool("insecure") {
@@ -78,9 +78,9 @@ func genTracesCommand() *cli.Command {
 						httpExpOpt = append(httpExpOpt, otlptracehttp.WithInsecure())
 					}
 
-					if len(cfg.Headers) > 0 {
-						grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(cfg.Headers))
-						httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(cfg.Headers))
+					if len(tracesCfg.Headers) > 0 {
+						grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(tracesCfg.Headers))
+						httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(tracesCfg.Headers))
 					}
 
 					var exp *otlptrace.Exporter
@@ -114,13 +114,13 @@ func genTracesCommand() *cli.Command {
 					}()
 
 					tracerProvider := sdktrace.NewTracerProvider(
-						sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String(cfg.ServiceName))),
+						sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String(tracesCfg.ServiceName))),
 					)
 
 					tracerProvider.RegisterSpanProcessor(ssp)
 					otel.SetTracerProvider(tracerProvider)
 
-					if err := traces.Run(cfg, logger); err != nil {
+					if err := traces.Run(tracesCfg, logger); err != nil {
 						logger.Error("failed to stop the exporter", zap.Error(err))
 					}
 
@@ -158,7 +158,7 @@ func genTracesCommand() *cli.Command {
 					},
 				},
 				Action: func(c *cli.Context) error {
-					cfg := &traces.Config{
+					tracesCfg := &traces.Config{
 						Endpoint:    c.String("otel-exporter-otlp-endpoint"),
 						NumTraces:   1,
 						WorkerCount: 1,
@@ -176,14 +176,14 @@ func genTracesCommand() *cli.Command {
 					))
 
 					grpcExpOpt := []otlptracegrpc.Option{
-						otlptracegrpc.WithEndpoint(cfg.Endpoint),
+						otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),
 						otlptracegrpc.WithDialOption(
 							grpc.WithBlock(),
 						),
 					}
 
 					httpExpOpt := []otlptracehttp.Option{
-						otlptracehttp.WithEndpoint(cfg.Endpoint),
+						otlptracehttp.WithEndpoint(tracesCfg.Endpoint),
 					}
 
 					if c.Bool("insecure") {
@@ -191,9 +191,9 @@ func genTracesCommand() *cli.Command {
 						httpExpOpt = append(httpExpOpt, otlptracehttp.WithInsecure())
 					}
 
-					if len(cfg.Headers) > 0 {
-						grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(cfg.Headers))
-						httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(cfg.Headers))
+					if len(tracesCfg.Headers) > 0 {
+						grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(tracesCfg.Headers))
+						httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(tracesCfg.Headers))
 					}
 
 					var exp *otlptrace.Exporter
@@ -227,13 +227,13 @@ func genTracesCommand() *cli.Command {
 					}()
 
 					tracerProvider := sdktrace.NewTracerProvider(
-						sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String(cfg.ServiceName))),
+						sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String(tracesCfg.ServiceName))),
 					)
 
 					tracerProvider.RegisterSpanProcessor(ssp)
 					otel.SetTracerProvider(tracerProvider)
 
-					if err := traces.Run(cfg, logger); err != nil {
+					if err := traces.Run(tracesCfg, logger); err != nil {
 						logger.Error("failed to stop the exporter", zap.Error(err))
 					}
 
