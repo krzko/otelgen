@@ -1,0 +1,21 @@
+name: Release
+on:
+  push:
+    tags:
+      - v*.*.*
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Unshallow Fetch
+      run: git fetch --prune --unshallow
+    - uses: actions/setup-go@v3
+      with:
+        go-version: '1.18'
+    - name: Release via goreleaser
+      uses: goreleaser/goreleaser-action@v3
+      with:
+        args: release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
