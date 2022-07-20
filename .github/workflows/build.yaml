@@ -20,7 +20,7 @@ jobs:
         go-version: '1.18'
     - name: Build & Test
       run: |
-        go build -v
+        go build -v ./cmd/otelgen
         go test ./...
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v3
