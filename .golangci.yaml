@@ -3,7 +3,7 @@ run:
 linters:
   enable:
     - thelper
-    - gofumpt
+    # - gofumpt
     - tparallel
     - unconvert
     - unparam

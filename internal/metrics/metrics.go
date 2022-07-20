@@ -21,7 +21,6 @@ import (
 	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
 	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 )
 
 type Config struct {
@@ -65,7 +64,7 @@ func Counter(ctx context.Context, m metric.Meter, c *Config, logger *zap.Logger)
 		instrument.WithDescription("Counter demonstrates how to measure non-decreasing numbers"),
 	)
 
-	var i int64 = 0
+	var i int64
 	for {
 		i++
 		logger.Info("Generating", zap.String("name", name))
@@ -259,13 +258,13 @@ func CounterObserverAdvanced(ctx context.Context, m metric.Meter, c *Config, log
 
 // Run executes the test scenario.
 func Run(ctx context.Context, exp *otlpmetric.Exporter, m metric.Meter, c *Config, logger *zap.Logger) func() {
-	limit := rate.Limit(c.Rate)
-	if c.Rate == 0 {
-		limit = rate.Inf
-		logger.Info("generation of metrics isn't being throttled")
-	} else {
-		logger.Info("generation of metrics is limited", zap.Float64("per-second", float64(limit)))
-	}
+	// limit := rate.Limit(c.Rate)
+	// if c.Rate == 0 {
+	// 	limit = rate.Inf
+	// 	logger.Info("generation of metrics isn't being throttled")
+	// } else {
+	// 	logger.Info("generation of metrics is limited", zap.Float64("per-second", float64(limit)))
+	// }
 
 	pusher := controller.New(
 		processor.NewFactory(
