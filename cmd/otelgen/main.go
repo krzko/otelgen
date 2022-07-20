@@ -1,16 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
 	"github.com/krzko/otelgen/internal/cli"
 )
 
-var version string = "0.0.1"
+var (
+	version = "dev"
+	commit  = "none"
+)
 
 func main() {
-	app := cli.New(version)
+	v := fmt.Sprintf("v%v-%v", version, commit)
+	app := cli.New(v)
 
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
