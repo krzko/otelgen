@@ -22,7 +22,7 @@ func genLogsCommand() *cli.Command {
 					if err != nil {
 						panic(fmt.Sprintf("failed to obtain logger: %v", err))
 					}
-					defer logger.Sync()
+					// defer logger.Sync()
 
 					logger.Info("soon (tm)")
 

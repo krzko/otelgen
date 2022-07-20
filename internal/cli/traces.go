@@ -56,7 +56,7 @@ func genTracesCommand() *cli.Command {
 					if err != nil {
 						panic(fmt.Sprintf("failed to obtain logger: %v", err))
 					}
-					defer logger.Sync()
+					// defer logger.Sync()
 
 					grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
 						zap.AddCallerSkip(3),
@@ -84,7 +84,7 @@ func genTracesCommand() *cli.Command {
 					}
 
 					var exp *otlptrace.Exporter
-					if c.String("protocl") == "http" {
+					if c.String("protocol") == "http" {
 						logger.Info("starting HTTP exporter")
 						exp, err = otlptracehttp.New(context.Background(), httpExpOpt...)
 					} else {
@@ -169,7 +169,7 @@ func genTracesCommand() *cli.Command {
 					if err != nil {
 						panic(fmt.Sprintf("failed to obtain logger: %v", err))
 					}
-					defer logger.Sync()
+					// defer logger.Sync()
 
 					grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
 						zap.AddCallerSkip(3),
@@ -197,7 +197,7 @@ func genTracesCommand() *cli.Command {
 					}
 
 					var exp *otlptrace.Exporter
-					if c.String("protocl") == "http" {
+					if c.String("protocol") == "http" {
 						logger.Info("starting HTTP exporter")
 						exp, err = otlptracehttp.New(context.Background(), httpExpOpt...)
 					} else {

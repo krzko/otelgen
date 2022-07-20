@@ -41,7 +41,7 @@ func generateMetricsUpDownCounterAction(c *cli.Context) error {
 	if err != nil {
 		panic(fmt.Sprintf("failed to obtain logger: %v", err))
 	}
-	defer logger.Sync()
+	// defer logger.Sync()
 
 	grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
 		zap.AddCallerSkip(3),
@@ -64,7 +64,7 @@ func generateMetricsUpDownCounterAction(c *cli.Context) error {
 	}
 
 	var exp *otlpmetric.Exporter
-	if c.String("protocl") == "http" {
+	if c.String("protocol") == "http" {
 		logger.Info("starting HTTP exporter")
 		exp, err = otlpmetrichttp.New(context.Background(), httpExpOpt...)
 	} else {
