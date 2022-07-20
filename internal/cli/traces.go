@@ -129,7 +129,7 @@ func genTracesCommand() *cli.Command {
 			},
 			{
 				Name:    "multi",
-				Usage:   "generate a multiple traces",
+				Usage:   "generate multiple traces",
 				Aliases: []string{"m"},
 				Flags: []cli.Flag{
 					&cli.BoolFlag{

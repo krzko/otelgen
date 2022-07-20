@@ -22,7 +22,7 @@ var generateMetricsCounterObserverCommand = &cli.Command{
 	Description: "CounterObserver demonstrates how to measure monotonic (non-decreasing) numbers",
 	Aliases:     []string{"co"},
 	Action: func(c *cli.Context) error {
-		return generateMetricsCounterAction(c)
+		return generateMetricsCounterObserverAction(c)
 	},
 }
 
