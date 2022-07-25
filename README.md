@@ -130,7 +130,7 @@ $ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 traces single
 {"level":"info","ts":1658747062.742642,"caller":"cli/traces.go:99","msg":"stopping the exporter"}
 ```
 
-If you're running a collector on `localhost`, use `--insecure` to enable **h2c** for OTLP/gRPC (4317/tcp) and http for OTLP/HTTP (4318/tcp), of how to generate a trace using `single`, with using insecure transport:
+If you're running a collector on `localhost`, use `--insecure` to enable **h2c** for OTLP/gRPC (4317/tcp) and **http** for OTLP/HTTP (4318/tcp), of how to generate a trace using `single`, with using insecure transport:
 
 ```sh
 $ otelgen --otel-exporter-otlp-endpoint localhost:4317 --insecure traces single
