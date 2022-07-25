@@ -21,6 +21,7 @@ var generateMetricsCounterWithLabelsCommand = &cli.Command{
 	Usage:       "generate metrics of type counter with labels",
 	Description: "CounterWithLabels demonstrates how to add different labels (\"hits\" and \"misses\")",
 	Aliases:     []string{"cwl"},
+	Hidden:      true,
 	Action: func(c *cli.Context) error {
 		return generateMetricsCounterWithLabelsAction(c)
 	},

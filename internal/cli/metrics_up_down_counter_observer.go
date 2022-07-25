@@ -21,6 +21,7 @@ var generateMetricsUpDownCounterObserverCommand = &cli.Command{
 	Usage:       "generate metrics of type up down counter, using observer",
 	Description: "UpDownCounterObserver demonstrates how to measure numbers that can go up and down",
 	Aliases:     []string{"udco"},
+	Hidden:      true,
 	Action: func(c *cli.Context) error {
 		return generateMetricsUpDownCounterObserverAction(c)
 	},

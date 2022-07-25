@@ -21,6 +21,7 @@ var generateMetricsCounterObserverCommand = &cli.Command{
 	Usage:       "generate metrics of type counter, using observer",
 	Description: "CounterObserver demonstrates how to measure monotonic (non-decreasing) numbers",
 	Aliases:     []string{"co"},
+	Hidden:      true,
 	Action: func(c *cli.Context) error {
 		return generateMetricsCounterObserverAction(c)
 	},

@@ -21,6 +21,7 @@ var generateMetricsGaugeObserverCommand = &cli.Command{
 	Usage:       "generate metrics of type gauge, using observer",
 	Description: "GaugeObserver demonstrates how to measure non-additive numbers that can go up and down",
 	Aliases:     []string{"go"},
+	Hidden:      true,
 	Action: func(c *cli.Context) error {
 		return generateMetricsGaugeObserverAction(c)
 	},
