@@ -37,6 +37,7 @@ func genTracesCommand() *cli.Command {
 						Aliases: []string{"m"},
 						Usage:   "marshal trace context via HTTP headers",
 						Value:   false,
+						Hidden:  true,
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -135,22 +136,17 @@ func genTracesCommand() *cli.Command {
 						Aliases: []string{"m"},
 						Usage:   "marshal trace context via HTTP headers",
 						Value:   false,
+						Hidden:  true,
 					},
 					&cli.IntFlag{
-						Name:    "rate",
-						Aliases: []string{"r"},
-						Usage:   "rate of traces per second. 0 means no throttling",
-						Value:   0,
-					},
-					&cli.IntFlag{
-						Name:    "traces",
+						Name:    "number-traces",
 						Aliases: []string{"t"},
 						Usage:   "number of traces to generate in each worker",
-						Value:   1,
+						Value:   10,
 					},
 					&cli.IntFlag{
 						Name:    "workers",
-						Aliases: []string{"t"},
+						Aliases: []string{"w"},
 						Usage:   "number of workers (goroutines) to run",
 						Value:   1,
 					},
@@ -159,11 +155,17 @@ func genTracesCommand() *cli.Command {
 					var err error
 					defer logger.Sync()
 
+					if c.String("otel-exporter-otlp-endpoint") == "" {
+						return errors.New("'otel-exporter-otlp-endpoint' must be set")
+					}
+
 					tracesCfg := &traces.Config{
-						Endpoint:    c.String("otel-exporter-otlp-endpoint"),
-						NumTraces:   1,
-						WorkerCount: 1,
-						ServiceName: c.String("service-name"),
+						TotalDuration: time.Duration(c.Int("duration") * int(time.Second)),
+						Endpoint:      c.String("otel-exporter-otlp-endpoint"),
+						Rate:          c.Int64("rate"),
+						NumTraces:     c.Int("number-traces"),
+						WorkerCount:   c.Int("workers"),
+						ServiceName:   c.String("service-name"),
 					}
 
 					if c.String("log-level") == "debug" {
