@@ -114,10 +114,26 @@ $ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 30 metric
 
 The `otelgen traces` command supports two types of traces, `single` and `multi`, the difference being, sometimes you just want to send a single trace to validate a configuration. **Multi** will allow you configure the `duration` and `rate`.
 
-Here is an example, of how to generate a trace using `single`:
+Here is an example, of how to generate a trace using `single`, with using secure transport:
 
 ```sh
 $ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 traces single
+
+{"level":"info","ts":1658747062.525185,"caller":"cli/traces.go:90","msg":"starting gRPC exporter"}
+{"level":"info","ts":1658747062.710507,"caller":"traces/config.go:58","msg":"generation of traces isn't being throttled"}
+{"level":"info","ts":1658747062.7106712,"caller":"traces/traces.go:43","msg":"starting traces","worker":0}
+{"level":"info","ts":1658747062.710735,"caller":"traces/traces.go:79","msg":"Trace","worker":0,"traceId":"9481f4c1a9099079c49ed14af2739b6d"}
+{"level":"info","ts":1658747062.710753,"caller":"traces/traces.go:80","msg":"Parent Span","worker":0,"spanId":"fd76b9e4265aecfc"}
+{"level":"info","ts":1658747062.7107708,"caller":"traces/traces.go:81","msg":"Child Span","worker":0,"spanId":"02267d8d1342d63a"}
+{"level":"info","ts":1658747062.710814,"caller":"traces/traces.go:92","msg":"traces generated","worker":0,"traces":2}
+{"level":"info","ts":1658747062.710835,"caller":"cli/traces.go:108","msg":"stop the batch span processor"}
+{"level":"info","ts":1658747062.742642,"caller":"cli/traces.go:99","msg":"stopping the exporter"}
+```
+
+If you're running a collector on `localhost`, use `--insecure` to enable **h2c** for OTLP/gRPC (4317/tcp) and http for OTLP/HTTP (4318/tcp), of how to generate a trace using `single`, with using insecure transport:
+
+```sh
+$ otelgen --otel-exporter-otlp-endpoint localhost:4317 --insecure traces single
 
 {"level":"info","ts":1658747062.525185,"caller":"cli/traces.go:90","msg":"starting gRPC exporter"}
 {"level":"info","ts":1658747062.710507,"caller":"traces/config.go:58","msg":"generation of traces isn't being throttled"}
