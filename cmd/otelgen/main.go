@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -9,13 +8,13 @@ import (
 )
 
 var (
-	version = "dev"
-	commit  = "none"
+	version string
+	commit  string
+	date    string
 )
 
 func main() {
-	v := fmt.Sprintf("v%v-%v", version, commit)
-	app := cli.New(v)
+	app := cli.New(version, commit, date)
 
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)

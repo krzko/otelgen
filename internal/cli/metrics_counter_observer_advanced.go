@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/krzko/otelgen/internal/metrics"
@@ -27,25 +27,24 @@ var generateMetricsCounterObserverAdvancedCommand = &cli.Command{
 }
 
 func generateMetricsCounterObserverAdvancedAction(c *cli.Context) error {
+	var err error
+
 	if c.String("otel-exporter-otlp-endpoint") == "" {
 		return errors.New("'otel-exporter-otlp-endpoint' must be set")
 	}
 
 	metricsCfg := &metrics.Config{
-		Endpoint:    c.String("otel-exporter-otlp-endpoint"),
-		NumMetrics:  1,
-		ServiceName: c.String("service-name"),
+		TotalDuration: time.Duration(c.Int("duration") * int(time.Second)),
+		Endpoint:      c.String("otel-exporter-otlp-endpoint"),
+		Rate:          c.Int64("rate"),
+		ServiceName:   c.String("service-name"),
 	}
 
-	logger, err := zap.NewProduction()
-	if err != nil {
-		panic(fmt.Sprintf("failed to obtain logger: %v", err))
+	if c.String("log-level") == "debug" {
+		grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
+			zap.AddCallerSkip(3),
+		))
 	}
-	// defer logger.Sync()
-
-	grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
-		zap.AddCallerSkip(3),
-	))
 
 	grpcExpOpt := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithEndpoint(metricsCfg.Endpoint),
@@ -89,7 +88,9 @@ func generateMetricsCounterObserverAdvancedAction(c *cli.Context) error {
 
 	var meter = global.MeterProvider().Meter(c.String("service-name"))
 
-	metrics.Run(ctx, exp, meter, metricsCfg, logger)
+	if _, err := metrics.Run(ctx, exp, meter, metricsCfg, logger); err != nil {
+		logger.Error("failed to stop the exporter", zap.Error(err))
+	}
 
 	metrics.CounterObserverAdvanced(ctx, meter, metricsCfg, logger)
 

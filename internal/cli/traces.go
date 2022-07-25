@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
@@ -13,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"google.golang.org/grpc"
 
 	"github.com/krzko/otelgen/internal/traces"
@@ -38,9 +37,13 @@ func genTracesCommand() *cli.Command {
 						Aliases: []string{"m"},
 						Usage:   "marshal trace context via HTTP headers",
 						Value:   false,
+						Hidden:  true,
 					},
 				},
 				Action: func(c *cli.Context) error {
+					var err error
+					defer logger.Sync()
+
 					if c.String("otel-exporter-otlp-endpoint") == "" {
 						return errors.New("'otel-exporter-otlp-endpoint' must be set")
 					}
@@ -52,15 +55,11 @@ func genTracesCommand() *cli.Command {
 						ServiceName: c.String("service-name"),
 					}
 
-					logger, err := zap.NewProduction()
-					if err != nil {
-						panic(fmt.Sprintf("failed to obtain logger: %v", err))
+					if c.String("log-level") == "debug" {
+						grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
+							zap.AddCallerSkip(3),
+						))
 					}
-					// defer logger.Sync()
-
-					grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
-						zap.AddCallerSkip(3),
-					))
 
 					grpcExpOpt := []otlptracegrpc.Option{
 						otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),
@@ -137,43 +136,43 @@ func genTracesCommand() *cli.Command {
 						Aliases: []string{"m"},
 						Usage:   "marshal trace context via HTTP headers",
 						Value:   false,
+						Hidden:  true,
 					},
 					&cli.IntFlag{
-						Name:    "rate",
-						Aliases: []string{"r"},
-						Usage:   "rate of traces per second. 0 means no throttling",
-						Value:   0,
-					},
-					&cli.IntFlag{
-						Name:    "traces",
+						Name:    "number-traces",
 						Aliases: []string{"t"},
 						Usage:   "number of traces to generate in each worker",
-						Value:   1,
+						Value:   10,
 					},
 					&cli.IntFlag{
 						Name:    "workers",
-						Aliases: []string{"t"},
+						Aliases: []string{"w"},
 						Usage:   "number of workers (goroutines) to run",
 						Value:   1,
 					},
 				},
 				Action: func(c *cli.Context) error {
+					var err error
+					defer logger.Sync()
+
+					if c.String("otel-exporter-otlp-endpoint") == "" {
+						return errors.New("'otel-exporter-otlp-endpoint' must be set")
+					}
+
 					tracesCfg := &traces.Config{
-						Endpoint:    c.String("otel-exporter-otlp-endpoint"),
-						NumTraces:   1,
-						WorkerCount: 1,
-						ServiceName: c.String("service-name"),
+						TotalDuration: time.Duration(c.Int("duration") * int(time.Second)),
+						Endpoint:      c.String("otel-exporter-otlp-endpoint"),
+						Rate:          c.Int64("rate"),
+						NumTraces:     c.Int("number-traces"),
+						WorkerCount:   c.Int("workers"),
+						ServiceName:   c.String("service-name"),
 					}
 
-					logger, err := zap.NewProduction()
-					if err != nil {
-						panic(fmt.Sprintf("failed to obtain logger: %v", err))
+					if c.String("log-level") == "debug" {
+						grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
+							zap.AddCallerSkip(3),
+						))
 					}
-					// defer logger.Sync()
-
-					grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
-						zap.AddCallerSkip(3),
-					))
 
 					grpcExpOpt := []otlptracegrpc.Option{
 						otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),

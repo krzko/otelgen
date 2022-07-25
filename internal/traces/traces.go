@@ -2,13 +2,14 @@ package traces
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -26,21 +27,28 @@ type worker struct {
 }
 
 const (
-	fakeIP string = "1.2.3.4"
+	fakeIP  string = "1.2.3.4"
+	fakeNS  string = "Demo"
+	fakeVer string = "1.2.3"
 
-	fakeSpanDuration = 123 * time.Microsecond
+	fakeSpanDuration = 1234 * time.Millisecond
 )
 
 func (w worker) simulateTraces(sn string) {
 	tracer := otel.Tracer(sn)
 	limiter := rate.NewLimiter(w.limitPerSecond, 1)
 	var i int
+	hn, _ := os.Hostname()
 	for w.running.Load() {
 		w.logger.Info("starting traces")
-		ctx, sp := tracer.Start(context.Background(), "lets-go", trace.WithAttributes(
+		ctx, sp := tracer.Start(context.Background(), "ping", trace.WithAttributes(
 			attribute.String("span.kind", "client"), // is there a semantic convention for this?
+			semconv.ServiceNamespaceKey.String(fakeNS),
 			semconv.NetPeerIPKey.String(fakeIP),
 			semconv.PeerServiceKey.String(sn+"-server"),
+			semconv.ServiceInstanceIDKey.String(hn),
+			semconv.ServiceVersionKey.String(fakeVer),
+			semconv.TelemetrySDKLanguageGo,
 		))
 
 		childCtx := ctx
@@ -53,10 +61,14 @@ func (w worker) simulateTraces(sn string) {
 			childCtx = otel.GetTextMapPropagator().Extract(childCtx, header)
 		}
 
-		_, child := tracer.Start(childCtx, "okey-dokey", trace.WithAttributes(
+		_, child := tracer.Start(childCtx, "pong", trace.WithAttributes(
 			attribute.String("span.kind", "server"),
+			semconv.ServiceNamespaceKey.String(fakeNS),
 			semconv.NetPeerIPKey.String(fakeIP),
 			semconv.PeerServiceKey.String(sn+"-client"),
+			semconv.ServiceInstanceIDKey.String(hn),
+			semconv.ServiceVersionKey.String(fakeVer),
+			semconv.TelemetrySDKLanguageGo,
 		))
 
 		if err := limiter.Wait(context.Background()); err != nil {
@@ -64,6 +76,9 @@ func (w worker) simulateTraces(sn string) {
 		}
 
 		opt := trace.WithTimestamp(time.Now().Add(fakeSpanDuration))
+		w.logger.Info("Trace", zap.String("traceId", sp.SpanContext().TraceID().String()))
+		w.logger.Info("Parent Span", zap.String("spanId", sp.SpanContext().SpanID().String()))
+		w.logger.Info("Child Span", zap.String("spanId", child.SpanContext().SpanID().String()))
 		child.End(opt)
 		sp.End(opt)
 
