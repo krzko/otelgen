@@ -98,6 +98,7 @@ func Run(c *Config, logger *zap.Logger) error {
 		go w.simulateTraces(c.ServiceName)
 	}
 	if c.TotalDuration > 0 {
+		logger.Info("generation duration", zap.Float64("seconds", c.TotalDuration.Seconds()))
 		time.Sleep(c.TotalDuration)
 		running.Store(false)
 	}

@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
@@ -13,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"google.golang.org/grpc"
 
 	"github.com/krzko/otelgen/internal/traces"
@@ -41,6 +40,9 @@ func genTracesCommand() *cli.Command {
 					},
 				},
 				Action: func(c *cli.Context) error {
+					var err error
+					defer logger.Sync()
+
 					if c.String("otel-exporter-otlp-endpoint") == "" {
 						return errors.New("'otel-exporter-otlp-endpoint' must be set")
 					}
@@ -52,15 +54,11 @@ func genTracesCommand() *cli.Command {
 						ServiceName: c.String("service-name"),
 					}
 
-					logger, err := zap.NewProduction()
-					if err != nil {
-						panic(fmt.Sprintf("failed to obtain logger: %v", err))
+					if c.String("log-level") == "debug" {
+						grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
+							zap.AddCallerSkip(3),
+						))
 					}
-					// defer logger.Sync()
-
-					grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
-						zap.AddCallerSkip(3),
-					))
 
 					grpcExpOpt := []otlptracegrpc.Option{
 						otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),
@@ -158,6 +156,9 @@ func genTracesCommand() *cli.Command {
 					},
 				},
 				Action: func(c *cli.Context) error {
+					var err error
+					defer logger.Sync()
+
 					tracesCfg := &traces.Config{
 						Endpoint:    c.String("otel-exporter-otlp-endpoint"),
 						NumTraces:   1,
@@ -165,15 +166,11 @@ func genTracesCommand() *cli.Command {
 						ServiceName: c.String("service-name"),
 					}
 
-					logger, err := zap.NewProduction()
-					if err != nil {
-						panic(fmt.Sprintf("failed to obtain logger: %v", err))
+					if c.String("log-level") == "debug" {
+						grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
+							zap.AddCallerSkip(3),
+						))
 					}
-					// defer logger.Sync()
-
-					grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
-						zap.AddCallerSkip(3),
-					))
 
 					grpcExpOpt := []otlptracegrpc.Option{
 						otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),
