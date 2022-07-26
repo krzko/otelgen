@@ -42,7 +42,6 @@ func genTracesCommand() *cli.Command {
 				},
 				Action: func(c *cli.Context) error {
 					var err error
-					defer logger.Sync()
 
 					if c.String("otel-exporter-otlp-endpoint") == "" {
 						return errors.New("'otel-exporter-otlp-endpoint' must be set")

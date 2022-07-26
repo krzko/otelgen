@@ -53,7 +53,7 @@ func (v *HeaderValue) Set(s string) error {
 func Run(ctx context.Context, exp *otlpmetric.Exporter, m metric.Meter, c *Config, logger *zap.Logger) (func(), error) {
 	limit := rate.Limit(c.Rate)
 	if c.Rate == 0 {
-		limit = rate.Inf
+		limit = rate.Inf //nolint
 		logger.Info("generation of metrics isn't being throttled")
 	} else {
 		logger.Info("generation of metrics is limited", zap.Float64("per-second", float64(limit)))

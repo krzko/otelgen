@@ -26,6 +26,9 @@ func initLogger(c *cli.Context) error {
 	logger, err = cfg.Build()
 
 	defer logger.Sync()
+	if err != nil {
+		panic(err)
+	}
 
 	return err
 }

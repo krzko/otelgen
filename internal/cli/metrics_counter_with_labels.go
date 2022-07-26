@@ -29,7 +29,6 @@ var generateMetricsCounterWithLabelsCommand = &cli.Command{
 
 func generateMetricsCounterWithLabelsAction(c *cli.Context) error {
 	var err error
-	defer logger.Sync()
 
 	if c.String("otel-exporter-otlp-endpoint") == "" {
 		return errors.New("'otel-exporter-otlp-endpoint' must be set")
