@@ -24,11 +24,11 @@ func initLogger(c *cli.Context) error {
 		cfg = zap.NewProductionConfig()
 	}
 	logger, err = cfg.Build()
-
-	defer logger.Sync()
 	if err != nil {
 		panic(err)
 	}
+
+	defer logger.Sync()
 
 	return err
 }
