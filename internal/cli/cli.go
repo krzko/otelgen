@@ -28,7 +28,7 @@ func initLogger(c *cli.Context) error {
 		panic(err)
 	}
 
-	defer logger.Sync()
+	defer logger.Sync() // nolint: errcheck
 
 	return err
 }
