@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
@@ -76,9 +78,20 @@ func genTracesCommand() *cli.Command {
 						httpExpOpt = append(httpExpOpt, otlptracehttp.WithInsecure())
 					}
 
-					if len(tracesCfg.Headers) > 0 {
-						grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(tracesCfg.Headers))
-						httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(tracesCfg.Headers))
+					if len(c.StringSlice("header")) > 0 {
+						headers := make(map[string]string)
+						logger.Debug("Header count", zap.Int("headers", len(c.StringSlice("header"))))
+						for _, h := range c.StringSlice("header") {
+							kv := strings.SplitN(h, "=", 2)
+							if len(kv) != 2 {
+								return fmt.Errorf("value should be of the format key=value")
+							}
+							logger.Debug("key=value", zap.String(kv[0], kv[1]))
+							(headers)[kv[0]] = kv[1]
+
+						}
+						grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(headers))
+						httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(headers))
 					}
 
 					var exp *otlptrace.Exporter

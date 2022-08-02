@@ -58,7 +58,7 @@ USAGE:
    otelgen [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.0.1
+   v0.0.2
 
 COMMANDS:
    metrics, m  Generate metrics
@@ -67,6 +67,7 @@ COMMANDS:
 
 GLOBAL OPTIONS:
    --duration value, -d value           duration in seconds (default: 0)
+   --header value                       additional headers in 'key=value' format  (accepts multiple inputs)
    --help, -h                           show help (default: false)
    --insecure, -i                       whether to enable client transport security (default: false)
    --log-level value                    log level used by the logger, one of: debug, info, warn, error (default: "info")
@@ -108,6 +109,15 @@ $ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 30 metric
 {"level":"info","ts":1658746741.791389,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
 {"level":"info","ts":1658746746.791574,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
 {"level":"info","ts":1658746751.791806,"caller":"cli/metrics_counter.go:79","msg":"stopping the exporter"}
+```
+
+If you need to pass in additional HTTP headers to allow for authentication to vendor backends, simply utilise the `--header key=value` flag. The unit is a slice of headers so it accepts multiple headers during invocation. Such as:
+
+```sh
+$ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
+    --header 'x-auth=xxxxxx' \
+    --header 'x-dataset=xxxxxx' \
+    metrics counter
 ```
 
 ### Traces
@@ -153,6 +163,15 @@ $ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 10 --rate
 {"level":"info","ts":1658747149.910769,"caller":"traces/traces.go:80","msg":"Parent Span","worker":0,"spanId":"0aab1b9d6535bb84"}
 {"level":"info","ts":1658747149.910798,"caller":"traces/traces.go:81","msg":"Child Span","worker":0,"spanId":"665b66edc4c7e26e"}
 ...
+```
+
+If you need to pass in additional HTTP headers to allow for authentication to vendor backends, simply utilise the `--header key=value` flag. The unit is a slice of headers so it accepts multiple headers during invocation. Such as:
+
+```sh
+$ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
+    --header 'x-auth=xxxxxx' \
+    --header 'x-dataset=xxxxxx' \
+    traces single
 ```
 
 ## Acknowledgements
