@@ -13,6 +13,11 @@ func getGlobalFlags() []cli.Flag {
 			Usage:   "duration in seconds",
 			Value:   0,
 		}),
+		altsrc.NewStringSliceFlag(&cli.StringSliceFlag{
+			Name: "header",
+			// Aliases: []string{"h"},
+			Usage: "additional headers in 'key=value' format",
+		}),
 		altsrc.NewBoolFlag(&cli.BoolFlag{
 			Name:    "insecure",
 			Usage:   "whether to enable client transport security",
