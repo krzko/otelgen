@@ -48,6 +48,11 @@ func generateMetricsCounterObserverAdvancedAction(c *cli.Context) error {
 		))
 	}
 
+	if c.Bool("delta-temporality") {
+		// Cumulative is technically the default.
+		logger.Info("Delta temporality is not supported for CounterObserverAdvanced, using Cumulative temporality.")
+	}
+
 	grpcExpOpt := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithEndpoint(metricsCfg.Endpoint),
 		otlpmetricgrpc.WithDialOption(
