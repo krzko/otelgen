@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/metric/global"
+	"go.opentelemetry.io/otel/sdk/metric/export/aggregation"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -23,7 +24,14 @@ var generateMetricsGaugeObserverCommand = &cli.Command{
 	Usage:       "generate metrics of type gauge, using observer",
 	Description: "GaugeObserver demonstrates how to measure non-additive numbers that can go up and down",
 	Aliases:     []string{"go"},
-	Hidden:      true,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "delta-temporality",
+			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
+			Value: false,
+		},
+	},
+	Hidden: true,
 	Action: func(c *cli.Context) error {
 		return generateMetricsGaugeObserverAction(c)
 	},
@@ -81,13 +89,20 @@ func generateMetricsGaugeObserverAction(c *cli.Context) error {
 		httpExpOpt = append(httpExpOpt, otlpmetrichttp.WithHeaders(headers))
 	}
 
+	temporality := aggregation.CumulativeTemporalitySelector()
+	if c.Bool("delta-temporality") {
+		temporality = aggregation.DeltaTemporalitySelector()
+	}
+
 	var exp *otlpmetric.Exporter
 	if c.String("protocol") == "http" {
 		logger.Info("starting HTTP exporter")
-		exp, err = otlpmetrichttp.New(context.Background(), httpExpOpt...)
+		client := otlpmetrichttp.NewClient(httpExpOpt...)
+		exp, err = otlpmetric.New(context.Background(), client, otlpmetric.WithMetricAggregationTemporalitySelector(temporality))
 	} else {
 		logger.Info("starting gRPC exporter")
-		exp, err = otlpmetricgrpc.New(context.Background(), grpcExpOpt...)
+		client := otlpmetricgrpc.NewClient(grpcExpOpt...)
+		exp, err = otlpmetric.New(context.Background(), client, otlpmetric.WithMetricAggregationTemporalitySelector(temporality))
 	}
 
 	if err != nil {
