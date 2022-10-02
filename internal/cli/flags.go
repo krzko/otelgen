@@ -57,10 +57,5 @@ func getGlobalFlags() []cli.Flag {
 			// EnvVars: []string{"OTEL_SERVICE_NAME"},
 			Value: "otelgen",
 		}),
-		altsrc.NewBoolFlag(&cli.BoolFlag{
-			Name:  "delta-temporality",
-			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
-			Value: false,
-		}),
 	}
 }

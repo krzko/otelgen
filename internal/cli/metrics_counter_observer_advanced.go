@@ -23,6 +23,13 @@ var generateMetricsCounterObserverAdvancedCommand = &cli.Command{
 	Usage:       "generate metrics of type counter, using observer advanced pattern",
 	Description: "CounterObserverAdvanced demonstrates how to measure monotonic (non-decreasing) numbers",
 	Aliases:     []string{"coa"},
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "delta-temporality",
+			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
+			Value: false,
+		},
+	},
 	Action: func(c *cli.Context) error {
 		return generateMetricsCounterObserverAdvancedAction(c)
 	},

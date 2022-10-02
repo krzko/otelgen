@@ -24,6 +24,13 @@ var generateMetricsCounterCommand = &cli.Command{
 	Usage:       "generate metrics of type counter",
 	Description: "Counter demonstrates how to measure non-decreasing numbers",
 	Aliases:     []string{"c"},
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "delta-temporality",
+			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
+			Value: false,
+		},
+	},
 	Action: func(c *cli.Context) error {
 		return generateMetricsCounterAction(c)
 	},
