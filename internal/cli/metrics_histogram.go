@@ -24,6 +24,13 @@ var generateMetricsHistogramCommand = &cli.Command{
 	Usage:       "generate metrics of type histogram",
 	Description: "Histogram demonstrates how to record a distribution of individual values",
 	Aliases:     []string{"h"},
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "delta-temporality",
+			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
+			Value: false,
+		},
+	},
 	Action: func(c *cli.Context) error {
 		return generateMetricsHistogramAction(c)
 	},

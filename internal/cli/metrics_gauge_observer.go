@@ -24,7 +24,14 @@ var generateMetricsGaugeObserverCommand = &cli.Command{
 	Usage:       "generate metrics of type gauge, using observer",
 	Description: "GaugeObserver demonstrates how to measure non-additive numbers that can go up and down",
 	Aliases:     []string{"go"},
-	Hidden:      true,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "delta-temporality",
+			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
+			Value: false,
+		},
+	},
+	Hidden: true,
 	Action: func(c *cli.Context) error {
 		return generateMetricsGaugeObserverAction(c)
 	},

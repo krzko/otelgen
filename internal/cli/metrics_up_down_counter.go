@@ -24,6 +24,13 @@ var generateMetricsUpDownCounterCommand = &cli.Command{
 	Usage:       "generate metrics of type up down counter",
 	Description: "UpDownCounter demonstrates how to measure numbers that can go up and down",
 	Aliases:     []string{"udc"},
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "delta-temporality",
+			Usage: "Use delta temporality when exporting metrics (cumulative temporality is the default)",
+			Value: false,
+		},
+	},
 	Action: func(c *cli.Context) error {
 		return generateMetricsUpDownCounterAction(c)
 	},
