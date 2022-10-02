@@ -58,7 +58,7 @@ USAGE:
    otelgen [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.0.2
+   v0.0.3
 
 COMMANDS:
    metrics, m  Generate metrics
