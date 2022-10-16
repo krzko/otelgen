@@ -116,7 +116,7 @@ func generateMetricsCounterObserverAdvancedAction(c *cli.Context) error {
 	ctx := context.Background()
 	logger.Info("Starting metrics generation")
 
-	var meter = global.MeterProvider().Meter(c.String("service-name"))
+	var meter = global.MeterProvider().Meter(metricsCfg.ServiceName)
 
 	if _, err := metrics.Run(ctx, exp, meter, metricsCfg, logger); err != nil {
 		logger.Error("failed to stop the exporter", zap.Error(err))

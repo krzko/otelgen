@@ -15,6 +15,8 @@ import (
 	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
 	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
 	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
@@ -68,6 +70,7 @@ func Run(ctx context.Context, exp *otlpmetric.Exporter, m metric.Meter, c *Confi
 		),
 		controller.WithExporter(exp),
 		controller.WithCollectPeriod(time.Duration(c.Rate)*time.Second),
+		controller.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String(c.ServiceName))),
 	)
 
 	global.SetMeterProvider(pusher)
