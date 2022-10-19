@@ -49,7 +49,13 @@ func New(version, commit, date string) *cli.App {
 
 	flags := getGlobalFlags()
 
-	v := fmt.Sprintf("v%v-%v (%v)", version, commit, date)
+	var v string
+	if version == "" {
+		v = "develop"
+	} else {
+		v = fmt.Sprintf("v%v-%v (%v)", version, commit, date)
+	}
+
 	app := &cli.App{
 		Name:    name,
 		Usage:   "A tool to generate synthetic OpenTelemetry logs, metrics and traces",
