@@ -17,7 +17,8 @@ func genLogsCommand() *cli.Command {
 				Aliases: []string{"s"},
 				Action: func(c *cli.Context) error {
 
-					logger.Info("soon (tm)")
+					logger.Info("Not yet implemented")
+					logger.Info("https://opentelemetry.io/docs/instrumentation/go/#status-and-releases")
 
 					return nil
 				},
