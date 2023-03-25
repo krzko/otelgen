@@ -12,13 +12,16 @@ import (
 )
 
 // Histogram demonstrates how to record a distribution of individual values
-func SimulateHistogram(ctx context.Context, mp metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateHistogram(ctx context.Context, mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
-	run(conf, logger, histogram(mp, c, logger), &mp)
+	err := run(conf, logger, histogram(mp, c, logger))
+	if err != nil {
+		logger.Error("failed to run histogram", zap.Error(err))
+	}
 }
 
 // histogram generates a histogram metric
-func histogram(mp metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
+func histogram(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
 		name := fmt.Sprintf("%v.metrics.histogram", c.ServiceName)
 		durRecorder, _ := mp.Meter(c.ServiceName).Int64Histogram(

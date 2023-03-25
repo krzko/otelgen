@@ -12,13 +12,16 @@ import (
 )
 
 // SimulateUpDownCounter demonstrates how to measure numbers that can go up and down
-func SimulateUpDownCounter(ctx context.Context, mp metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateUpDownCounter(ctx context.Context, mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
-	run(conf, logger, upDownCounter(mp, c, logger), &mp)
+	err := run(conf, logger, upDownCounter(mp, c, logger))
+	if err != nil {
+		logger.Error("failed to run up-down-counter", zap.Error(err))
+	}
 }
 
 // upDownCounter generates a up down counter metric
-func upDownCounter(mp metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
+func upDownCounter(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
 		name := fmt.Sprintf("%v.metrics.up_down_counter", c.ServiceName)
 		counter, _ := mp.Meter(c.ServiceName).Int64UpDownCounter(

@@ -64,7 +64,7 @@ func generateMetricsHistogramAction(c *cli.Context) error {
 
 	provider := createMeterProvider(reader, metricsCfg)
 
-	metrics.SimulateHistogram(ctx, *provider, metricsCfg, logger)
+	metrics.SimulateHistogram(ctx, provider, metricsCfg, logger)
 
 	return nil
 }

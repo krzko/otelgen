@@ -11,13 +11,16 @@ import (
 )
 
 // Counter demonstrates how to measure non-decreasing int64s
-func SimulateCounter(ctx context.Context, mp metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateCounter(ctx context.Context, mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
-	run(conf, logger, counter(mp, c, logger), &mp)
+	err := run(conf, logger, counter(mp, c, logger))
+	if err != nil {
+		logger.Error("failed to run counter", zap.Error(err))
+	}
 }
 
 // counter generates a counter metric
-func counter(mp metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
+func counter(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
 		name := fmt.Sprintf("%v.metrics.counter", c.ServiceName)
 		logger.Debug("generating counter", zap.String("name", name))

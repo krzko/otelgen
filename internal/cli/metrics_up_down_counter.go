@@ -64,7 +64,7 @@ func generateMetricsUpDownCounterAction(c *cli.Context) error {
 
 	provider := createMeterProvider(reader, metricsCfg)
 
-	metrics.SimulateUpDownCounter(ctx, *provider, metricsCfg, logger)
+	metrics.SimulateUpDownCounter(ctx, provider, metricsCfg, logger)
 
 	return nil
 }

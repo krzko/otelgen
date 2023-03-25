@@ -64,7 +64,7 @@ func generateMetricsCounterAction(c *cli.Context) error {
 
 	provider := createMeterProvider(reader, metricsCfg)
 
-	metrics.SimulateCounter(ctx, *provider, metricsCfg, logger)
+	metrics.SimulateCounter(ctx, provider, metricsCfg, logger)
 
 	return nil
 }
