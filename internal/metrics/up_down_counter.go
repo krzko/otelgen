@@ -12,7 +12,7 @@ import (
 )
 
 // SimulateUpDownCounter demonstrates how to measure numbers that can go up and down
-func SimulateUpDownCounter(ctx context.Context, mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateUpDownCounter(mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
 	err := run(conf, logger, upDownCounter(mp, c, logger))
 	if err != nil {

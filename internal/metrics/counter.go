@@ -11,7 +11,7 @@ import (
 )
 
 // Counter demonstrates how to measure non-decreasing int64s
-func SimulateCounter(ctx context.Context, mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateCounter(mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
 	err := run(conf, logger, counter(mp, c, logger))
 	if err != nil {

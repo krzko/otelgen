@@ -12,7 +12,7 @@ import (
 )
 
 // Histogram demonstrates how to record a distribution of individual values
-func SimulateHistogram(ctx context.Context, mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateHistogram(mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
 	err := run(conf, logger, histogram(mp, c, logger))
 	if err != nil {
