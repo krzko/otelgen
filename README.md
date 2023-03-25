@@ -12,13 +12,12 @@ Often synthetics are used to validate  certain configurations, to ensure that th
 
 The following specifications are supported.
 
-- [ ] Logs: Not started yet
+- [X] Traces: Yes
 - [X] Metrics: Yes
   - Counter
   - Histogram
-  - Gauge
   - UpDownCounter
-- [X] Traces: Yes
+- [ ] Logs: Not started yet
 
 ## Getting Started
 
@@ -179,4 +178,3 @@ $ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
 This tool was developed in a short amount of time due to the awesome idea of the following sources:
 
 - [tracegen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/tracegen): This utility simulates a client generating traces, useful for testing and demonstration purposes. In essence, `otelgen` uses `tracegen` as the tracing infrastructure.
-- [Uptrace Metrics API](https://uptrace.dev/opentelemetry/go-metrics.html): Amazing metrics examples.

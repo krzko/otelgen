@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -43,8 +43,8 @@ func (w worker) simulateTraces(sn string) {
 		w.logger.Info("starting traces")
 		ctx, sp := tracer.Start(context.Background(), "ping", trace.WithAttributes(
 			attribute.String("span.kind", "client"), // is there a semantic convention for this?
-			semconv.ServiceNamespaceKey.String(fakeNS),
-			semconv.NetPeerIPKey.String(fakeIP),
+			semconv.ServiceNamespace(fakeNS),
+			semconv.NetPeerName(fakeIP),
 			semconv.PeerServiceKey.String(sn+"-server"),
 			semconv.ServiceInstanceIDKey.String(hn),
 			semconv.ServiceVersionKey.String(fakeVer),
@@ -63,8 +63,8 @@ func (w worker) simulateTraces(sn string) {
 
 		_, child := tracer.Start(childCtx, "pong", trace.WithAttributes(
 			attribute.String("span.kind", "server"),
-			semconv.ServiceNamespaceKey.String(fakeNS),
-			semconv.NetPeerIPKey.String(fakeIP),
+			semconv.ServiceNamespace(fakeNS),
+			semconv.NetPeerName(fakeIP),
 			semconv.PeerServiceKey.String(sn+"-client"),
 			semconv.ServiceInstanceIDKey.String(hn),
 			semconv.ServiceVersionKey.String(fakeVer),

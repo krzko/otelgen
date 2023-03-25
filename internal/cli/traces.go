@@ -154,7 +154,7 @@ func genTracesCommand() *cli.Command {
 						Name:    "number-traces",
 						Aliases: []string{"t"},
 						Usage:   "number of traces to generate in each worker",
-						Value:   10,
+						Value:   3,
 					},
 					&cli.IntFlag{
 						Name:    "workers",

@@ -17,7 +17,7 @@ func genDiagnosticsCommand() *cli.Command {
 				Aliases: []string{"net"},
 				Action: func(c *cli.Context) error {
 
-					logger.Info("soon (tm)")
+					logger.Info("Not yet implemented")
 
 					return nil
 				},
