@@ -129,11 +129,17 @@ func getExporterOptions(c *cli.Context, mc *metrics.Config) ([]otlpmetricgrpc.Op
 	}
 
 	if c.String("temporality") == "delta" {
+		logger.Info("using", zap.String("temporarility", c.String("temporality")))
 		grpcExpOpt = append(grpcExpOpt, otlpmetricgrpc.WithTemporalitySelector(preferDeltaTemporalitySelector))
 		httpExpOpt = append(httpExpOpt, otlpmetrichttp.WithTemporalitySelector(preferDeltaTemporalitySelector))
-	} else {
+	} else if c.String("temporality") == "cumulative" {
+		logger.Info("using", zap.String("temporarility", c.String("temporality")))
 		grpcExpOpt = append(grpcExpOpt, otlpmetricgrpc.WithTemporalitySelector(preferCumulativeTemporalitySelector))
 		httpExpOpt = append(httpExpOpt, otlpmetrichttp.WithTemporalitySelector(preferCumulativeTemporalitySelector))
+	} else {
+		logger.Error("falliing back to delta temporality", zap.String("use one of", "delta, cumulative"))
+		grpcExpOpt = append(grpcExpOpt, otlpmetricgrpc.WithTemporalitySelector(preferDeltaTemporalitySelector))
+		httpExpOpt = append(httpExpOpt, otlpmetrichttp.WithTemporalitySelector(preferDeltaTemporalitySelector))
 	}
 
 	return grpcExpOpt, httpExpOpt
