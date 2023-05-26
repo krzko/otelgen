@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/fatih/color v1.15.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
-	github.com/urfave/cli/v2 v2.25.1
+	github.com/urfave/cli/v2 v2.25.3
 	go.opentelemetry.io/otel v1.14.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v0.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v0.37.0
