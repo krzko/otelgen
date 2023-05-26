@@ -1,7 +1,6 @@
 ### Custom ###
 
-# manual
-cmd/otelgen/otelgen
+/otelgen
 
 # goreleaser
 dist/
