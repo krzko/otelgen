@@ -75,7 +75,7 @@ func createExporter(ctx context.Context, c *cli.Context, grpcExpOpt []otlpmetric
 
 	if c.String("protocol") == "http" {
 		logger.Info("starting HTTP exporter")
-		exp, err = NewMetricExporter(ctx, "grpc", httpExpOpt)
+		exp, err = NewMetricExporter(ctx, "http", httpExpOpt)
 		if err != nil {
 			logger.Fatal("failed to create HTTP exporter: %v", zap.Error(err))
 		}
