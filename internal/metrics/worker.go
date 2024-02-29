@@ -46,9 +46,9 @@ func (w *Worker) Run(ctx context.Context, workerFunc WorkerFunc) error {
 	if w.totalDuration == 0 {
 		// w.numMetrics = 0
 		w.totalDuration = 86400 * time.Second // 24 hours
-	} else if w.numMetrics == 0 {
-		w.logger.Error("either `metrics` or `duration` must be greater than 0")
-		return fmt.Errorf("either `metrics` or `duration` must be greater than 0")
+		// } else if w.numMetrics == 0 { // !!! "NumMetrics" this undefined, always 0 !!!
+		// 	w.logger.Error("either `metrics` or `duration` must be greater than 0")
+		// 	return fmt.Errorf("either `metrics` or `duration` must be greater than 0")
 	}
 
 	running := atomic.NewBool(true)

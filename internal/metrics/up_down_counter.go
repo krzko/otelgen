@@ -46,7 +46,7 @@ func upDownCounter(mp *metric.MeterProvider, c Config, logger *zap.Logger) Worke
 				} else {
 					counter.Add(ctx, -1)
 				}
-				time.Sleep(time.Duration(c.Rate) * time.Second)
+				time.Sleep(time.Duration(float64(time.Second) / float64(c.Rate)))
 			}
 		} else {
 			for {
@@ -56,7 +56,7 @@ func upDownCounter(mp *metric.MeterProvider, c Config, logger *zap.Logger) Worke
 				} else {
 					counter.Add(ctx, -1)
 				}
-				time.Sleep(time.Duration(c.Rate) * time.Second)
+				time.Sleep(time.Duration(float64(time.Second) / float64(c.Rate)))
 			}
 		}
 	}

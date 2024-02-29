@@ -43,14 +43,14 @@ func histogram(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFun
 				logger.Info("generating", zap.String("name", name))
 				dur := time.Duration(rand.NormFloat64()*5000000) * time.Microsecond
 				durRecorder.Record(ctx, dur.Microseconds())
-				time.Sleep(time.Duration(c.Rate) * time.Second)
+				time.Sleep(time.Duration(float64(time.Second) / float64(c.Rate)))
 			}
 		} else {
 			for {
 				logger.Info("generating", zap.String("name", name))
 				dur := time.Duration(rand.NormFloat64()*5000000) * time.Microsecond
 				durRecorder.Record(ctx, dur.Microseconds())
-				time.Sleep(time.Duration(c.Rate) * time.Second)
+				time.Sleep(time.Duration(float64(time.Second) / float64(c.Rate)))
 			}
 		}
 	}

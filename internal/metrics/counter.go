@@ -42,14 +42,14 @@ func counter(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc 
 				i++
 				logger.Info("generating", zap.String("name", name))
 				counter.Add(ctx, i)
-				time.Sleep(time.Duration(c.Rate) * time.Second)
+				time.Sleep(time.Duration(float64(time.Second) / float64(c.Rate)))
 			}
 		} else {
 			for {
 				i++
 				logger.Info("generating", zap.String("name", name))
 				counter.Add(ctx, i)
-				time.Sleep(time.Duration(c.Rate) * time.Second)
+				time.Sleep(time.Duration(float64(time.Second) / float64(c.Rate)))
 			}
 		}
 	}
