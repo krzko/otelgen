@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"go.opentelemetry.io/otel/metric/instrument"
-	"go.opentelemetry.io/otel/sdk/metric"
+	apiMetric "go.opentelemetry.io/otel/metric"
+	sdkMetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
 )
 
 // Counter demonstrates how to measure non-decreasing int64s
-func SimulateCounter(mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateCounter(mp *sdkMetric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
 	err := run(conf, logger, counter(mp, c, logger))
 	if err != nil {
@@ -20,14 +20,14 @@ func SimulateCounter(mp *metric.MeterProvider, conf *Config, logger *zap.Logger)
 }
 
 // counter generates a counter metric
-func counter(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
+func counter(mp *sdkMetric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
 		name := fmt.Sprintf("%v.metrics.counter", c.ServiceName)
 		logger.Debug("generating counter", zap.String("name", name))
 		counter, _ := mp.Meter(c.ServiceName).Int64Counter(
 			name,
-			instrument.WithUnit("1"),
-			instrument.WithDescription("Counter demonstrates how to measure non-decreasing numbers"),
+			apiMetric.WithUnit("1"),
+			apiMetric.WithDescription("Counter demonstrates how to measure non-decreasing numbers"),
 		)
 
 		var i int64

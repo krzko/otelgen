@@ -31,16 +31,7 @@ func genMetricsCommand() *cli.Command {
 	}
 }
 
-// MetricExporter is an interface that abstracts the functionality of both
-// otlpmetricgrpc and otlpmetrichttp exporters.
-type MetricExporter interface {
-	metric.Exporter
-}
-
-// NewMetricExporter creates a new MetricExporter based on the provided protocol.
-// It accepts either otlpmetricgrpc.Option or otlpmetrichttp.Option as an argument.
-// It returns an implementation of the MetricExporter interface.
-func NewMetricExporter(ctx context.Context, protocol string, options interface{}) (MetricExporter, error) {
+func NewMetricExporter(ctx context.Context, protocol string, options interface{}) (metric.Exporter, error) {
 	switch protocol {
 	case "grpc":
 		grpcOptions, ok := options.([]otlpmetricgrpc.Option)
@@ -69,8 +60,8 @@ func configureLogging(c *cli.Context) {
 }
 
 // createExporter creates a new exporter based on the command line flags
-func createExporter(ctx context.Context, c *cli.Context, grpcExpOpt []otlpmetricgrpc.Option, httpExpOpt []otlpmetrichttp.Option) (MetricExporter, error) {
-	var exp MetricExporter
+func createExporter(ctx context.Context, c *cli.Context, grpcExpOpt []otlpmetricgrpc.Option, httpExpOpt []otlpmetrichttp.Option) (metric.Exporter, error) {
+	var exp metric.Exporter
 	var err error
 
 	if c.String("protocol") == "http" {
@@ -187,7 +178,7 @@ func preferCumulativeTemporalitySelector(kind metric.InstrumentKind) metricdata.
 }
 
 // shutdownExporter shuts down the exporter
-func shutdownExporter(exp MetricExporter) {
+func shutdownExporter(exp metric.Exporter) {
 	defer func() {
 		logger.Info("stopping the exporter")
 		if err := exp.Shutdown(context.Background()); err != nil {
