@@ -6,13 +6,13 @@ import (
 	"math/rand"
 	"time"
 
-	"go.opentelemetry.io/otel/metric/instrument"
-	"go.opentelemetry.io/otel/sdk/metric"
+	apiMetric "go.opentelemetry.io/otel/metric"
+	sdkMetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
 )
 
 // Histogram demonstrates how to record a distribution of individual values
-func SimulateHistogram(mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateHistogram(mp *sdkMetric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
 	err := run(conf, logger, histogram(mp, c, logger))
 	if err != nil {
@@ -21,13 +21,13 @@ func SimulateHistogram(mp *metric.MeterProvider, conf *Config, logger *zap.Logge
 }
 
 // histogram generates a histogram metric
-func histogram(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
+func histogram(mp *sdkMetric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
 		name := fmt.Sprintf("%v.metrics.histogram", c.ServiceName)
 		durRecorder, _ := mp.Meter(c.ServiceName).Int64Histogram(
 			name,
-			instrument.WithUnit("microseconds"),
-			instrument.WithDescription("Histogram demonstrates how to record a distribution of individual values"),
+			apiMetric.WithUnit("microseconds"),
+			apiMetric.WithDescription("Histogram demonstrates how to record a distribution of individual values"),
 		)
 
 		if c.TotalDuration > 0 {
