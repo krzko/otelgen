@@ -6,13 +6,12 @@ import (
 	"math/rand"
 	"time"
 
-	"go.opentelemetry.io/otel/metric/instrument"
-	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 )
 
 // SimulateUpDownCounter demonstrates how to measure numbers that can go up and down
-func SimulateUpDownCounter(mp *metric.MeterProvider, conf *Config, logger *zap.Logger) {
+func SimulateUpDownCounter(mp metric.MeterProvider, conf *Config, logger *zap.Logger) {
 	c := *conf
 	err := run(conf, logger, upDownCounter(mp, c, logger))
 	if err != nil {
@@ -21,13 +20,13 @@ func SimulateUpDownCounter(mp *metric.MeterProvider, conf *Config, logger *zap.L
 }
 
 // upDownCounter generates a up down counter metric
-func upDownCounter(mp *metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
+func upDownCounter(mp metric.MeterProvider, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
 		name := fmt.Sprintf("%v.metrics.up_down_counter", c.ServiceName)
 		counter, _ := mp.Meter(c.ServiceName).Int64UpDownCounter(
 			name,
-			instrument.WithUnit("1"),
-			instrument.WithDescription("UpDownCounter demonstrates how to measure numbers that can go up and down"),
+			metric.WithUnit("1"),
+			metric.WithDescription("UpDownCounter demonstrates how to measure numbers that can go up and down"),
 		)
 
 		if c.TotalDuration > 0 {

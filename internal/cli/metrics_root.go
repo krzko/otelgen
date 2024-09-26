@@ -8,6 +8,7 @@ import (
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/krzko/otelgen/internal/metrics"
 	"github.com/urfave/cli/v2"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -24,9 +25,10 @@ func genMetricsCommand() *cli.Command {
 		Usage:   "Generate metrics",
 		Aliases: []string{"m"},
 		Subcommands: []*cli.Command{
-			generateMetricsCounterCommand,
+			generateMetricsExponentialHistogramCommand,
+			generateMetricsGaugeCommand,
 			generateMetricsHistogramCommand,
-			generateMetricsUpDownCounterCommand,
+			generateMetricsSumCommand,
 		},
 	}
 }
@@ -143,6 +145,24 @@ func getExporterOptions(c *cli.Context, mc *metrics.Config) ([]otlpmetricgrpc.Op
 	}
 
 	return grpcExpOpt, httpExpOpt
+}
+
+// parseAttributes parses the attributes from the command line and returns a slice of attribute.KeyValue
+func parseAttributes(attrs []string) ([]attribute.KeyValue, error) {
+	var result []attribute.KeyValue
+	for i, attr := range attrs {
+		parts := strings.SplitN(attr, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid attribute format at index %d: %s (expected key=value)", i, attr)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if key == "" {
+			return nil, fmt.Errorf("empty key in attribute at index %d: %s", i, attr)
+		}
+		result = append(result, attribute.String(key, value))
+	}
+	return result, nil
 }
 
 // parseHeaders parses the headers from the command line and returns a map of string

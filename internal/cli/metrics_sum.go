@@ -12,11 +12,11 @@ import (
 	"go.uber.org/zap"
 )
 
-var generateMetricsHistogramCommand = &cli.Command{
-	Name:        "histogram",
-	Usage:       "generate metrics of type histogram",
-	Description: "Histogram demonstrates how to measure a distribution of values",
-	Aliases:     []string{"hist"},
+var generateMetricsSumCommand = &cli.Command{
+	Name:        "sum",
+	Usage:       "generate metrics of type sum",
+	Description: "Sum demonstrates how to measure additive values over time",
+	Aliases:     []string{"s"},
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "temporality",
@@ -25,30 +25,25 @@ var generateMetricsHistogramCommand = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "unit",
-			Usage: "Unit of measurement for the histogram",
-			Value: "ms",
+			Usage: "Unit of measurement for the sum",
+			Value: "1",
 		},
 		&cli.StringSliceFlag{
 			Name:  "attribute",
-			Usage: "Attributes to add to the histogram (format: key=value)",
-		},
-		&cli.Float64SliceFlag{
-			Name:  "bounds",
-			Usage: "Bucket boundaries for the histogram",
-			Value: cli.NewFloat64Slice(1, 5, 10, 25, 50, 100, 250, 500, 1000),
+			Usage: "Attributes to add to the sum (format: key=value)",
 		},
 		&cli.BoolFlag{
-			Name:  "record-minmax",
-			Usage: "Record min and max values",
+			Name:  "monotonic",
+			Usage: "Whether the sum is monotonic (always increasing)",
 			Value: true,
 		},
 	},
 	Action: func(c *cli.Context) error {
-		return generateMetricsHistogramAction(c)
+		return generateMetricsSumAction(c)
 	},
 }
 
-func generateMetricsHistogramAction(c *cli.Context) error {
+func generateMetricsSumAction(c *cli.Context) error {
 	if c.String("otel-exporter-otlp-endpoint") == "" {
 		return errors.New("'otel-exporter-otlp-endpoint' must be set")
 	}
@@ -84,6 +79,7 @@ func generateMetricsHistogramAction(c *cli.Context) error {
 
 	temporality := metricdata.CumulativeTemporality
 	if c.String("temporality") == "delta" {
+		logger.Warn("Delta temporality for sum metrics may not be supported by all backends. Consider using cumulative.")
 		temporality = metricdata.DeltaTemporality
 	}
 
@@ -93,17 +89,16 @@ func generateMetricsHistogramAction(c *cli.Context) error {
 		return err
 	}
 
-	histogramConfig := metrics.HistogramConfig{
-		Name:         metricsCfg.ServiceName + ".metrics.histogram",
-		Description:  "Histogram demonstrates how to measure a distribution of values",
-		Unit:         c.String("unit"),
-		Attributes:   attributes,
-		Temporality:  temporality,
-		Bounds:       c.Float64Slice("bounds"),
-		RecordMinMax: c.Bool("record-minmax"),
+	sumConfig := metrics.SumConfig{
+		Name:        metricsCfg.ServiceName + ".metrics.sum",
+		Description: "Sum demonstrates how to measure additive values over time",
+		Unit:        c.String("unit"),
+		Attributes:  attributes,
+		Temporality: temporality,
+		IsMonotonic: c.Bool("monotonic"),
 	}
 
-	metrics.SimulateHistogram(provider, histogramConfig, metricsCfg, logger)
+	metrics.SimulateSum(provider, sumConfig, metricsCfg, logger)
 
 	return nil
 }
