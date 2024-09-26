@@ -150,7 +150,6 @@ func histogram(mp metric.MeterProvider, config HistogramConfig, c Config, logger
 					exemplars = nil
 				}
 
-				// Here you would send this dataPoint to your storage or processing system
 				processHistogramDataPoint(dataPoint, logger)
 			}
 		}
@@ -176,8 +175,6 @@ func findBucket(value float64, bounds []float64) int {
 }
 
 func processHistogramDataPoint(dataPoint HistogramDataPoint, logger *zap.Logger) {
-	// This is where you would implement the logic to send the data point to your storage or processing system
-	// For now, we'll just log some information about the data point
 	logger.Info("Processing histogram data point",
 		zap.String("id", dataPoint.ID),
 		zap.Int64("start_time", dataPoint.StartTimeUnix),

@@ -169,7 +169,6 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 					exemplars = nil
 				}
 
-				// Here you would send this dataPoint to your storage or processing system
 				processExponentialHistogramDataPoint(dataPoint, logger)
 			}
 		}
@@ -207,8 +206,6 @@ func mapToIndex(value float64, scale int32) int32 {
 }
 
 func processExponentialHistogramDataPoint(dataPoint ExponentialHistogramDataPoint, logger *zap.Logger) {
-	// This is where you would implement the logic to send the data point to your storage or processing system
-	// For now, we'll just log some information about the data point
 	logger.Info("Processing exponential histogram data point",
 		zap.String("id", dataPoint.ID),
 		zap.Int64("start_time", dataPoint.StartTimeUnix),

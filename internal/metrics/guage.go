@@ -82,7 +82,6 @@ func gauge(mp metric.MeterProvider, gc GaugeConfig, c Config, logger *zap.Logger
 					zap.String("temporality", gc.Temporality.String()),
 					zap.Int("exemplars_count", len(exemplars)),
 				)
-				// The callback will be called automatically by the SDK
 			}
 		}
 	}
