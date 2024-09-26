@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/krzko/otelgen/internal/metrics"
@@ -16,6 +17,7 @@ var generateMetricsCounterCommand = &cli.Command{
 	Usage:       "generate metrics of type counter",
 	Description: "Counter demonstrates how to measure non-decreasing numbers",
 	Aliases:     []string{"c"},
+	Hidden:      true,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "temporality",
@@ -25,6 +27,13 @@ var generateMetricsCounterCommand = &cli.Command{
 	},
 	Action: func(c *cli.Context) error {
 		return generateMetricsCounterAction(c)
+	},
+	Before: func(c *cli.Context) error {
+		fmt.Println("DEPRECATION WARNING: The 'counter' command is deprecated and will be removed in a future version.")
+		fmt.Println("Please use the 'sum' command instead.")
+		fmt.Println("Example: otelgen metrics sum")
+		fmt.Println()
+		return nil
 	},
 }
 

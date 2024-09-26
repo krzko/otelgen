@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/krzko/otelgen/internal/metrics"
@@ -16,6 +17,7 @@ var generateMetricsUpDownCounterCommand = &cli.Command{
 	Usage:       "generate metrics of type up down counter",
 	Description: "UpDownCounter demonstrates how to measure numbers that can go up and down",
 	Aliases:     []string{"udc"},
+	Hidden:      true,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "temporality",
@@ -25,6 +27,13 @@ var generateMetricsUpDownCounterCommand = &cli.Command{
 	},
 	Action: func(c *cli.Context) error {
 		return generateMetricsUpDownCounterAction(c)
+	},
+	Before: func(c *cli.Context) error {
+		fmt.Println("DEPRECATION WARNING: The 'counter' command is deprecated and will be removed in a future version.")
+		fmt.Println("Please use the 'guage' command instead.")
+		fmt.Println("Example: otelgen metrics guage")
+		fmt.Println()
+		return nil
 	},
 }
 

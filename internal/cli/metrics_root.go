@@ -25,10 +25,12 @@ func genMetricsCommand() *cli.Command {
 		Usage:   "Generate metrics",
 		Aliases: []string{"m"},
 		Subcommands: []*cli.Command{
+			generateMetricsCounterCommand,
 			generateMetricsExponentialHistogramCommand,
 			generateMetricsGaugeCommand,
 			generateMetricsHistogramCommand,
 			generateMetricsSumCommand,
+			generateMetricsUpDownCounterCommand,
 		},
 	}
 }
