@@ -40,7 +40,6 @@ jobs:
       - name: Build only
         run: |
           docker buildx build \
-            --secret id=sshKey,src=$HOME/.ssh/id_ecdsa \
             --platform linux/amd64 \
             -t ${{ env.REGISTRY_IMAGE }}:${{ github.sha }} \
             .
