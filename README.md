@@ -13,6 +13,7 @@ Often synthetics are used to validate  certain configurations, to ensure that th
 The following specifications are supported.
 
 - [X] Traces: Yes
+  - Scenarios to simulate differnt trace patterns
   - Span Events
   - Span Links
 - [X] Metrics: Yes

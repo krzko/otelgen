@@ -24,7 +24,9 @@ dockers:
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
-    - --platform=linux/amd64
+    - --build-arg=BUILD_VERSION={{ .Version }}
+    - --build-arg=BUILD_DATE={{ .CommitDate }}
+    - --build-arg=COMMIT_ID={{ .FullCommit }}
     - --label=org.opencontainers.image.title={{ .ProjectName }}
     - --label=org.opencontainers.image.description={{ .ProjectName }}
     - --label=org.opencontainers.image.url=https://github.com/krzko/{{ .ProjectName }}
@@ -38,6 +40,9 @@ dockers:
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
+    - --build-arg=BUILD_VERSION={{ .Version }}
+    - --build-arg=BUILD_DATE={{ .CommitDate }}
+    - --build-arg=COMMIT_ID={{ .FullCommit }}
     - --platform=linux/arm64/v8
     - --label=org.opencontainers.image.title={{ .ProjectName }}
     - --label=org.opencontainers.image.description={{ .ProjectName }}
