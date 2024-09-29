@@ -62,7 +62,7 @@ func New(version, commit, date string) *cli.App {
 		Version: v,
 		Flags:   flags,
 		Commands: []*cli.Command{
-			genDiagnosticsCommand(),
+			// genDiagnosticsCommand(),
 			genLogsCommand(),
 			genMetricsCommand(),
 			genTracesCommand(),

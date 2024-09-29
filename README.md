@@ -8,16 +8,25 @@ Often synthetics are used to validate  certain configurations, to ensure that th
 
 `otelgen` allows you to quickly validate these configurations using the [OpenTelemetry Protocol Specification](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md), which supports both [OTLP/gRPC](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md#otlpgrpc) and [OTLP/HTTP](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md#otlphttp) using the [OTLP Receiver](https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver/otlpreceiver).
 
-## Supported Specifications
+## Supported Signals
 
 The following specifications are supported.
 
 - [X] Traces: Yes
+  - Scenarios to simulate differnt trace patterns
+  - Span Events
+  - Span Links
 - [X] Metrics: Yes
-  - Counter
-  - Histogram
-  - UpDownCounter
-- [ ] Logs: Not started yet
+  - Metric Types:
+    - Exponential Histogram
+    - Guage
+    - Histogram
+    - Sum
+  - Exemplars
+- [X] Logs: Yes
+  - Log Levels
+  - Log Attributes
+  - Trace Context Correlation
 
 ## Getting Started
 
@@ -57,9 +66,10 @@ USAGE:
    otelgen [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.0.3
+   develop
 
 COMMANDS:
+   logs, l     Generate logs
    metrics, m  Generate metrics
    traces, t   Generate traces
    help, h     Shows a list of commands or help for one command
@@ -77,47 +87,9 @@ GLOBAL OPTIONS:
    --version, -v                        print the version (default: false)
 ```
 
-### Metrics
+## Signals
 
-The `otelgen metrics` command supports many different **metric** types. Here is an example of how to generate metrics:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 metrics counter
-
-{"level":"info","ts":1658746679.286242,"caller":"cli/metrics_counter.go:70","msg":"starting gRPC exporter"}
-{"level":"info","ts":1658746679.46613,"caller":"cli/metrics_counter.go:87","msg":"Starting metrics generation"}
-{"level":"info","ts":1658746679.466242,"caller":"metrics/config.go:59","msg":"generation of metrics is limited","per-second":5}
-{"level":"info","ts":1658746679.467317,"caller":"metrics/metrics.go:47","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746684.4677298,"caller":"metrics/metrics.go:47","msg":"generating","name":"otelgen.metrics.counter"}
-...
-```
-
-Here is an example, of how to limit the `duration` in seconds of a generation process:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 30 metrics counter
-
-{"level":"info","ts":1658746721.598725,"caller":"cli/metrics_counter.go:70","msg":"starting gRPC exporter"}
-{"level":"info","ts":1658746721.789262,"caller":"cli/metrics_counter.go:87","msg":"Starting metrics generation"}
-{"level":"info","ts":1658746721.789321,"caller":"metrics/config.go:59","msg":"generation of metrics is limited","per-second":5}
-{"level":"info","ts":1658746721.7894,"caller":"metrics/metrics.go:30","msg":"generation duration","seconds":30}
-{"level":"info","ts":1658746721.789411,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746726.7905679,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746731.790965,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746736.791102,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746741.791389,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746746.791574,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746751.791806,"caller":"cli/metrics_counter.go:79","msg":"stopping the exporter"}
-```
-
-If you need to pass in additional HTTP headers to allow for authentication to vendor backends, simply utilise the `--header key=value` flag. The unit is a slice of headers so it accepts multiple headers during invocation. Such as:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
-    --header 'x-auth=xxxxxx' \
-    --header 'x-dataset=xxxxxx' \
-    metrics counter
-```
+`otelgen` emits three types of signals, `logs`, `metrics` and `traces`. Each signal has a different set of options, which can be configured via the command line.
 
 ### Traces
 
@@ -173,8 +145,58 @@ $ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
     traces single
 ```
 
-## Acknowledgements
+### Metrics
 
-This tool was developed in a short amount of time due to the awesome idea of the following sources:
+The `otelgen metrics` command supports many different **metric** types. Here is an example of how to generate metrics:
 
-- [tracegen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/tracegen): This utility simulates a client generating traces, useful for testing and demonstration purposes. In essence, `otelgen` uses `tracegen` as the tracing infrastructure.
+```sh
+$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 metrics counter
+
+{"level":"info","ts":1658746679.286242,"caller":"cli/metrics_counter.go:70","msg":"starting gRPC exporter"}
+{"level":"info","ts":1658746679.46613,"caller":"cli/metrics_counter.go:87","msg":"Starting metrics generation"}
+{"level":"info","ts":1658746679.466242,"caller":"metrics/config.go:59","msg":"generation of metrics is limited","per-second":5}
+{"level":"info","ts":1658746679.467317,"caller":"metrics/metrics.go:47","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746684.4677298,"caller":"metrics/metrics.go:47","msg":"generating","name":"otelgen.metrics.counter"}
+...
+```
+
+Here is an example, of how to limit the `duration` in seconds of a generation process:
+
+```sh
+$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 30 metrics counter
+
+{"level":"info","ts":1658746721.598725,"caller":"cli/metrics_counter.go:70","msg":"starting gRPC exporter"}
+{"level":"info","ts":1658746721.789262,"caller":"cli/metrics_counter.go:87","msg":"Starting metrics generation"}
+{"level":"info","ts":1658746721.789321,"caller":"metrics/config.go:59","msg":"generation of metrics is limited","per-second":5}
+{"level":"info","ts":1658746721.7894,"caller":"metrics/metrics.go:30","msg":"generation duration","seconds":30}
+{"level":"info","ts":1658746721.789411,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746726.7905679,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746731.790965,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746736.791102,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746741.791389,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746746.791574,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
+{"level":"info","ts":1658746751.791806,"caller":"cli/metrics_counter.go:79","msg":"stopping the exporter"}
+```
+
+If you need to pass in additional HTTP headers to allow for authentication to vendor backends, simply utilise the `--header key=value` flag. The unit is a slice of headers so it accepts multiple headers during invocation. Such as:
+
+```sh
+$ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
+    --header 'x-auth=xxxxxx' \
+    --header 'x-dataset=xxxxxx' \
+    metrics counter
+```
+
+### Logs
+
+The `otelgen logs` command generates synthetic logs that simulate realistic workloads, useful for testing and validating observability pipelines.
+
+```sh
+$  otelgen --otel-exporter-otlp-endpoint localhost:4317 --insecure logs
+
+2024-09-29T15:03:10.092+1000	INFO	logs/logs.go:63	generation of logs is limited	{"per-second": 5}
+2024-09-29T15:03:10.093+1000	INFO	logs/logs.go:177	starting log generation	{"worker": 0, "worker_id": 0}
+2024-09-29T15:03:18.976+1000	INFO	logs/logs.go:138	log generation completed	{"total_logs": 30}
+```
+
+
