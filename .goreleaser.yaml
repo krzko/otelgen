@@ -1,4 +1,5 @@
-# .goreleaser.yml
+version: 2
+
 before:
   hooks:
     - go mod tidy
@@ -73,9 +74,6 @@ archives:
 checksum:
   name_template: checksums.txt
 
-snapshot:
-  name_template: "{{ incpatch .Version }}-next"
-
 changelog:
   sort: asc
   filters:
@@ -87,7 +85,7 @@ changelog:
 
 brews:
   - name: otelgen
-    tap:
+    repository:
       owner: 'krzko'
       name: 'homebrew-tap'
     homepage: https://github.com/krzko/otelgen
