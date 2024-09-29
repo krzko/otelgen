@@ -2,14 +2,14 @@ package traces
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/krzko/otelgen/internal/traces/scenarios"
+
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -17,78 +17,117 @@ import (
 )
 
 type worker struct {
-	running          *atomic.Bool    // pointer to shared flag that indicates it's time to stop the test
-	numTraces        int             // how many traces the worker has to generate (only when duration==0)
-	propagateContext bool            // whether the worker needs to propagate the trace context via HTTP headers
-	totalDuration    time.Duration   // how long to run the test for (overrides `numTraces`)
-	limitPerSecond   rate.Limit      // how many spans per second to generate
-	wg               *sync.WaitGroup // notify when done
+	running          *atomic.Bool
+	numTraces        int
+	propagateContext bool
+	totalDuration    time.Duration
+	limitPerSecond   rate.Limit
+	wg               *sync.WaitGroup
 	logger           *zap.Logger
+	scenarios        []string
+	serviceName      string
 }
 
-const (
-	fakeIP  string = "1.2.3.4"
-	fakeNS  string = "Demo"
-	fakeVer string = "1.2.3"
+func Run(c *Config, logger *zap.Logger) error {
+	if c.TotalDuration > 0 {
+		c.NumTraces = 0
+	} else if c.NumTraces <= 0 {
+		return fmt.Errorf("either `traces` or `duration` must be greater than 0")
+	}
 
-	fakeSpanDuration = 1234 * time.Millisecond
-)
+	limit := rate.Limit(c.Rate)
+	if c.Rate == 0 {
+		limit = rate.Inf
+		logger.Info("generation of traces isn't being throttled")
+	} else {
+		logger.Info("generation of traces is limited", zap.Float64("per-second", float64(limit)))
+	}
 
-func (w worker) simulateTraces(sn string) {
-	tracer := otel.Tracer(sn)
+	wg := sync.WaitGroup{}
+	running := atomic.NewBool(true)
+
+	for i := 0; i < c.WorkerCount; i++ {
+		wg.Add(1)
+		w := worker{
+			running:          running,
+			numTraces:        c.NumTraces,
+			propagateContext: c.PropagateContext,
+			totalDuration:    c.TotalDuration,
+			limitPerSecond:   limit,
+			wg:               &wg,
+			logger:           logger.With(zap.Int("worker", i)),
+			scenarios:        c.Scenarios,
+			serviceName:      c.ServiceName,
+		}
+		go w.simulateTraces()
+	}
+
+	if c.TotalDuration > 0 {
+		logger.Info("generation duration", zap.Float64("seconds", c.TotalDuration.Seconds()))
+		time.Sleep(c.TotalDuration)
+		running.Store(false)
+	}
+
+	wg.Wait()
+	return nil
+}
+
+func (w *worker) simulateTraces() {
+	tracer := otel.Tracer(w.serviceName)
 	limiter := rate.NewLimiter(w.limitPerSecond, 1)
 	var i int
-	hn, _ := os.Hostname()
+
 	for w.running.Load() {
 		w.logger.Info("starting traces")
-		ctx, sp := tracer.Start(context.Background(), "ping", trace.WithAttributes(
-			attribute.String("span.kind", "client"), // is there a semantic convention for this?
-			semconv.ServiceNamespace(fakeNS),
-			semconv.NetworkPeerAddress(fakeIP),
-			semconv.PeerServiceKey.String(sn+"-server"),
-			semconv.ServiceInstanceIDKey.String(hn),
-			semconv.ServiceVersionKey.String(fakeVer),
-			semconv.TelemetrySDKLanguageGo,
-		))
+		for _, scenario := range w.scenarios {
+			w.logger.Info("generating scenario", zap.String("scenario", scenario))
 
-		childCtx := ctx
-		if w.propagateContext {
-			header := propagation.HeaderCarrier{}
-			// simulates going remote
-			otel.GetTextMapPropagator().Inject(childCtx, header)
+			ctx, sp := tracer.Start(context.Background(), scenario)
+			childCtx := ctx
+			if w.propagateContext {
+				header := propagation.HeaderCarrier{}
+				otel.GetTextMapPropagator().Inject(childCtx, header)
+				childCtx = otel.GetTextMapPropagator().Extract(childCtx, header)
+			}
 
-			// simulates getting a request from a client
-			childCtx = otel.GetTextMapPropagator().Extract(childCtx, header)
+			err := runScenario(childCtx, scenario, tracer, w.logger, w.serviceName)
+			if err != nil {
+				w.logger.Error("failed to run scenario", zap.String("scenario", scenario), zap.Error(err))
+			}
+
+			if err := limiter.Wait(context.Background()); err != nil {
+				w.logger.Fatal("limiter waited failed, retry", zap.Error(err))
+			}
+
+			w.logger.Info("scenario completed",
+				zap.String("scenario", scenario),
+				zap.String("traceId", sp.SpanContext().TraceID().String()),
+				zap.String("spanId", sp.SpanContext().SpanID().String()),
+			)
+			sp.End()
 		}
-
-		_, child := tracer.Start(childCtx, "pong", trace.WithAttributes(
-			attribute.String("span.kind", "server"),
-			semconv.ServiceNamespace(fakeNS),
-			semconv.NetworkPeerAddress(fakeIP),
-			semconv.PeerServiceKey.String(sn+"-client"),
-			semconv.ServiceInstanceIDKey.String(hn),
-			semconv.ServiceVersionKey.String(fakeVer),
-			semconv.TelemetrySDKLanguageGo,
-		))
-
-		if err := limiter.Wait(context.Background()); err != nil {
-			w.logger.Fatal("limiter waited failed, retry", zap.Error(err))
-		}
-
-		opt := trace.WithTimestamp(time.Now().Add(fakeSpanDuration))
-		w.logger.Info("Trace", zap.String("traceId", sp.SpanContext().TraceID().String()))
-		w.logger.Info("Parent Span", zap.String("spanId", sp.SpanContext().SpanID().String()))
-		w.logger.Info("Child Span", zap.String("spanId", child.SpanContext().SpanID().String()))
-		child.End(opt)
-		sp.End(opt)
 
 		i++
-		if w.numTraces != 0 {
-			if i >= w.numTraces {
-				break
-			}
+		if w.numTraces != 0 && i >= w.numTraces {
+			break
 		}
 	}
-	w.logger.Info("traces generated", zap.Int("traces", i))
+
+	w.logger.Info("traces generation completed", zap.Int("totalTraces", i))
 	w.wg.Done()
+}
+
+func runScenario(ctx context.Context, scenario string, tracer trace.Tracer, logger *zap.Logger, serviceName string) error {
+	scenarioFunc, ok := Scenarios[scenario]
+	if !ok {
+		return fmt.Errorf("unknown scenario: %s", scenario)
+	}
+	return scenarioFunc(ctx, tracer, logger, serviceName)
+}
+
+var Scenarios = map[string]func(context.Context, trace.Tracer, *zap.Logger, string) error{
+	"basic":         scenarios.BasicScenario,
+	"web_mobile":    scenarios.WebMobileScenario,
+	"eventing":      scenarios.EventingScenario,
+	"microservices": scenarios.MicroservicesScenario,
 }
