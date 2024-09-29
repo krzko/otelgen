@@ -20,50 +20,6 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.CommitDate}}
     mod_timestamp: '{{ .CommitTimestamp }}'
 
-dockers:
-  - image_templates: ["ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}-amd64"]
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-    - --build-arg=BUILD_VERSION={{ .Version }}
-    - --build-arg=BUILD_DATE={{ .CommitDate }}
-    - --build-arg=COMMIT_ID={{ .FullCommit }}
-    - --label=org.opencontainers.image.title={{ .ProjectName }}
-    - --label=org.opencontainers.image.description={{ .ProjectName }}
-    - --label=org.opencontainers.image.url=https://github.com/krzko/{{ .ProjectName }}
-    - --label=org.opencontainers.image.source=https://github.com/krzko/{{ .ProjectName }}
-    - --label=org.opencontainers.image.version={{ .Version }}
-    - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-    - --label=org.opencontainers.image.revision={{ .FullCommit }}
-    - --label=org.opencontainers.image.licenses=MIT
-  - image_templates: ["ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}-arm64v8"]
-    goarch: arm64
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-    - --build-arg=BUILD_VERSION={{ .Version }}
-    - --build-arg=BUILD_DATE={{ .CommitDate }}
-    - --build-arg=COMMIT_ID={{ .FullCommit }}
-    - --platform=linux/arm64/v8
-    - --label=org.opencontainers.image.title={{ .ProjectName }}
-    - --label=org.opencontainers.image.description={{ .ProjectName }}
-    - --label=org.opencontainers.image.url=https://github.com/krzko/{{ .ProjectName }}
-    - --label=org.opencontainers.image.source=https://github.com/krzko/{{ .ProjectName }}
-    - --label=org.opencontainers.image.version={{ .Version }}
-    - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-    - --label=org.opencontainers.image.revision={{ .FullCommit }}
-    - --label=org.opencontainers.image.licenses=MIT
-
-docker_manifests:
-  - name_template: ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}
-    image_templates:
-    - ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}-amd64
-    - ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}-arm64v8
-  - name_template: ghcr.io/krzko/{{ .ProjectName }}:latest
-    image_templates:
-    - ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}-amd64
-    - ghcr.io/krzko/{{ .ProjectName }}:{{ .Version }}-arm64v8
-
 archives:
   - name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     format_overrides:
@@ -89,7 +45,7 @@ brews:
       owner: 'krzko'
       name: 'homebrew-tap'
     homepage: https://github.com/krzko/otelgen
-    description: "A tool to generate synthetic OpenTelemetry logs, metrics and traces, the core observability pillars"
+    description: "A tool to generate synthetic OpenTelemetry logs, metrics and traces telemetry data."
     install: |
       bin.install "otelgen"
     test: |
