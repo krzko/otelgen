@@ -40,7 +40,7 @@ jobs:
       - name: Build and push
         run: |
           docker buildx build \
-            --buikd-arg=BUILD_VERSION=${{ env.VERSION }} \
+            --build-arg=BUILD_VERSION=${{ env.VERSION }} \
             --build-arg=BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
             --build-arg=COMMIT_ID=${{ github.sha }} \
             --platform linux/amd64,linux/arm64 \
