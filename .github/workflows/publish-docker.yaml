@@ -6,7 +6,7 @@ on:
       - published
 
 env:
-  REGISTRY_IMAGE: ghcr.io/spanwise/otelgen
+  REGISTRY_IMAGE: ghcr.io/krzko/otelgen
 
 jobs:
   build:
