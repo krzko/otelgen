@@ -21,60 +21,41 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func cryptoRandIntn(max int) int {
-	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
-	if err != nil {
-		panic(fmt.Sprintf("failed to generate random number: %v", err))
-	}
-	return int(nBig.Int64())
-}
-
-// Config holds the configuration for log generation.
-type Config struct {
-	WorkerCount    int
-	NumLogs        int
-	ServiceName    string
-	Endpoint       string
-	Insecure       bool
-	UseHTTP        bool
-	Rate           float64
-	TotalDuration  time.Duration
-	SeverityText   string
-	SeverityNumber int32
-}
-
 // Run initialises log generation based on the provided configuration.
 func Run(c *Config, logger *zap.Logger) error {
-	// Validate configuration
-	if c.TotalDuration > 0 {
-		c.NumLogs = 0
-	} else if c.NumLogs <= 0 {
-		return fmt.Errorf("either `NumLogs` or `TotalDuration` must be greater than 0")
+	logger.Debug("Log generation config", zap.Any("Config", c))
+
+	if c.NumLogs == 0 && c.TotalDuration == 0 {
+		// Log without using zap.Error, which logs stack traces
+		logger.Warn("No log number or duration specified. Log generation will continue indefinitely.")
 	}
 
 	// Configure rate limiter
 	limit := rate.Limit(c.Rate)
 	if c.Rate == 0 {
 		limit = rate.Inf
-		logger.Info("generation of logs isn't being throttled")
+		logger.Info("Generation of logs isn't being throttled")
 	} else {
-		logger.Info("generation of logs is limited", zap.Float64("per-second", float64(limit)))
+		logger.Info("Generation of logs is limited", zap.Float64("per-second", float64(limit)))
 	}
 
 	// Create OTLP exporter
 	exporter, err := createExporter(c)
 	if err != nil {
+		// Log the error as a string without the stack trace
+		logger.Error("Failed to create exporter", zap.String("error", err.Error()))
 		return fmt.Errorf("failed to create exporter: %w", err)
 	}
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 		if err := exporter.Shutdown(ctx); err != nil {
-			logger.Error("failed to shutdown exporter", zap.Error(err))
+			// Log the error as a string without the stack trace
+			logger.Error("Failed to shutdown exporter", zap.String("error", err.Error()))
 		}
 	}()
 
-	// Define resource attributes, including Kubernetes-related details
+	// Define resource attributes
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(c.ServiceName),
@@ -83,6 +64,7 @@ func Run(c *Config, logger *zap.Logger) error {
 		semconv.K8SPodNameKey.String(generatePodName()),
 		semconv.HostNameKey.String("node-1"),
 	)
+	logger.Debug("Resource attributes set", zap.String("Resource", res.String()))
 
 	// Set up a BatchProcessor and pass it to the LoggerProvider
 	batchProcessor := sdklog.NewBatchProcessor(exporter,
@@ -100,7 +82,8 @@ func Run(c *Config, logger *zap.Logger) error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 		if err := loggerProvider.Shutdown(ctx); err != nil {
-			logger.Error("failed to shutdown logger provider", zap.Error(err))
+			// Log the error as a string without the stack trace
+			logger.Error("Failed to shutdown logger provider", zap.String("error", err.Error()))
 		}
 	}()
 
@@ -109,20 +92,17 @@ func Run(c *Config, logger *zap.Logger) error {
 	running := &atomic.Bool{}
 	running.Store(true)
 
-	// Parse severity
-	severityText, severityNumber, err := parseSeverity(c.SeverityText, c.SeverityNumber)
-	if err != nil {
-		return err
-	}
-
 	totalLogs := atomic.Int64{}
+
+	logger.Debug("Worker count", zap.Int("WorkerCount", c.WorkerCount))
 
 	for i := 0; i < c.WorkerCount; i++ {
 		wg.Add(1)
-		go generateLogs(c, loggerProvider, limit, logger.With(zap.Int("worker", i)), &wg, res, running, severityText, severityNumber, &totalLogs)
+		logger.Debug("Starting worker", zap.Int("Worker", i))
+		go generateLogs(c, loggerProvider, limit, logger.With(zap.Int("worker", i)), &wg, res, running, &totalLogs)
 	}
 
-	// Handle total duration if specified
+	// Handle total duration if specified, otherwise run indefinitely
 	if c.TotalDuration > 0 {
 		time.Sleep(c.TotalDuration)
 		running.Store(false)
@@ -132,7 +112,7 @@ func Run(c *Config, logger *zap.Logger) error {
 	wg.Wait()
 
 	// Log the total number of logs generated
-	logger.Info("log generation completed", zap.Int64("total_logs", totalLogs.Load()))
+	logger.Info("Log generation completed", zap.Int64("total_logs", totalLogs.Load()))
 	return nil
 }
 
@@ -145,13 +125,23 @@ func createExporter(c *Config) (sdklog.Exporter, error) {
 	if c.UseHTTP {
 		opts := []otlploghttp.Option{
 			otlploghttp.WithEndpoint(c.Endpoint),
-			otlploghttp.WithInsecure(),
+		}
+		if c.Insecure {
+			opts = append(opts, otlploghttp.WithInsecure())
+		}
+		if len(c.Headers) > 0 {
+			opts = append(opts, otlploghttp.WithHeaders(c.Headers))
 		}
 		exp, err = otlploghttp.New(ctx, opts...)
 	} else {
 		opts := []otlploggrpc.Option{
 			otlploggrpc.WithEndpoint(c.Endpoint),
-			otlploggrpc.WithInsecure(),
+		}
+		if c.Insecure {
+			opts = append(opts, otlploggrpc.WithInsecure())
+		}
+		if len(c.Headers) > 0 {
+			opts = append(opts, otlploggrpc.WithHeaders(c.Headers))
 		}
 		exp, err = otlploggrpc.New(ctx, opts...)
 	}
@@ -164,21 +154,23 @@ func createExporter(c *Config) (sdklog.Exporter, error) {
 }
 
 // generateLogs handles the log generation for a single worker.
-func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.Limit, logger *zap.Logger, wg *sync.WaitGroup, res *resource.Resource, running *atomic.Bool, severityText string, severityNumber log.Severity, totalLogs *atomic.Int64) {
+// generateLogs handles the log generation for a single worker.
+func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.Limit, logger *zap.Logger, wg *sync.WaitGroup, res *resource.Resource, running *atomic.Bool, totalLogs *atomic.Int64) {
 	defer wg.Done()
 
 	limiter := rate.NewLimiter(limit, 1)
 	otelLogger := loggerProvider.Logger(c.ServiceName)
-
-	// Log statement to indicate that log generation is starting for this worker
-	logger.Info("starting log generation", zap.Int64("worker_id", totalLogs.Load()))
 
 	for i := 0; c.NumLogs == 0 || i < c.NumLogs; i++ {
 		if !running.Load() {
 			break
 		}
 
-		// Generate a single trace ID for the request
+		// Only log every 10th log entry
+		if i%10 == 0 {
+			logger.Debug("Generating log", zap.Int("log_index", i))
+		}
+
 		traceID := generateTraceID()
 		spanID := generateSpanID()
 
@@ -187,24 +179,25 @@ func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.L
 		httpMethods := []string{"GET", "POST", "PUT", "DELETE"}
 		httpMethod := httpMethods[cryptoRandIntn(len(httpMethods))]
 
-		// Randomize duration between phases to simulate request timings
 		for _, phase := range logPhases {
-			phaseDuration := randomDuration(100, 500) // Random duration between 100ms and 500ms
+			phaseDuration := randomDuration(100, 500)
+
+			// Randomize severity and text
+			severity, severityText := randomSeverity()
 
 			record := log.Record{}
 			record.SetTimestamp(time.Now())
 			record.SetObservedTimestamp(time.Now())
-			record.SetSeverity(severityNumber)
+			record.SetSeverity(severity)
 			record.SetSeverityText(severityText)
 			record.SetBody(log.StringValue(fmt.Sprintf("Log %d: %s phase: %s", i, severityText, phase)))
 
-			// Add attributes including trace_id, span_id, and Kubernetes/HTTP attributes
 			attrs := []log.KeyValue{
 				log.String("worker_id", fmt.Sprintf("%d", i)),
 				log.String("service.name", c.ServiceName),
 				log.String("trace_id", traceID.String()),
 				log.String("span_id", spanID.String()),
-				log.String("trace_flags", "01"), // Assuming trace is sampled
+				log.String("trace_flags", "01"),
 				log.String("phase", phase),
 				log.String("http.method", httpMethod),
 				log.Int("http.status_code", randomHTTPStatusCode()),
@@ -225,7 +218,6 @@ func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.L
 			spanID = generateSpanID()
 		}
 
-		// Update the total number of logs
 		totalLogs.Add(int64(len(logPhases)))
 
 		if err := limiter.Wait(context.Background()); err != nil {
@@ -233,6 +225,8 @@ func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.L
 			continue
 		}
 	}
+
+	logger.Debug("Worker completed log generation", zap.Int64("total_logs", totalLogs.Load()))
 }
 
 // generateTraceID generates a new trace ID using crypto/rand.
@@ -275,40 +269,28 @@ func generatePodName() string {
 	return fmt.Sprintf("otelgen-pod-%s", hex.EncodeToString(podNameSuffix))
 }
 
-// parseSeverity validates and parses severity text and number.
-func parseSeverity(severityText string, severityNumber int32) (string, log.Severity, error) {
-	sn := log.Severity(severityNumber)
-	if sn < log.SeverityTrace1 || sn > log.SeverityFatal4 {
-		return "", log.SeverityUndefined, fmt.Errorf("severity-number is out of range, the valid range is [1,24]")
+// randomSeverity generates a random severity level and text.
+func randomSeverity() (log.Severity, string) {
+	severities := []struct {
+		level log.Severity
+		text  string
+	}{
+		{log.SeverityTrace1, "Trace"},
+		{log.SeverityDebug, "Debug"},
+		{log.SeverityInfo, "Info"},
+		{log.SeverityWarn, "Warn"},
+		{log.SeverityError, "Error"},
+		{log.SeverityFatal, "Fatal"},
 	}
+	randomIdx := cryptoRandIntn(len(severities))
+	return severities[randomIdx].level, severities[randomIdx].text
+}
 
-	// severity number should match well-known severityText
-	switch severityText {
-	case "Trace":
-		if !(severityNumber >= 1 && severityNumber <= 4) {
-			return "", 0, fmt.Errorf("severity text %q does not match severity number %d, the valid range is [1,4]", severityText, severityNumber)
-		}
-	case "Debug":
-		if !(severityNumber >= 5 && severityNumber <= 8) {
-			return "", 0, fmt.Errorf("severity text %q does not match severity number %d, the valid range is [5,8]", severityText, severityNumber)
-		}
-	case "Info":
-		if !(severityNumber >= 9 && severityNumber <= 12) {
-			return "", 0, fmt.Errorf("severity text %q does not match severity number %d, the valid range is [9,12]", severityText, severityNumber)
-		}
-	case "Warn":
-		if !(severityNumber >= 13 && severityNumber <= 16) {
-			return "", 0, fmt.Errorf("severity text %q does not match severity number %d, the valid range is [13,16]", severityText, severityNumber)
-		}
-	case "Error":
-		if !(severityNumber >= 17 && severityNumber <= 20) {
-			return "", 0, fmt.Errorf("severity text %q does not match severity number %d, the valid range is [17,20]", severityText, severityNumber)
-		}
-	case "Fatal":
-		if !(severityNumber >= 21 && severityNumber <= 24) {
-			return "", 0, fmt.Errorf("severity text %q does not match severity number %d, the valid range is [21,24]", severityText, severityNumber)
-		}
+// cryptoRandIntn generates a crypto-random number within the range 0 to max-1.
+func cryptoRandIntn(max int) int {
+	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate random number: %v", err))
 	}
-
-	return severityText, sn, nil
+	return int(nBig.Int64())
 }
