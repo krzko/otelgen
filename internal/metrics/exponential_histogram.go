@@ -156,13 +156,20 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 					Exemplars:       exemplars,
 				}
 
+				if value < min || totalCount == 0 {
+					min = value
+				}
+				if value > max || totalCount == 0 {
+					max = value
+				}
+
+				// Reset min and max appropriately for delta temporality:
 				if config.Temporality == metricdata.DeltaTemporality {
-					// Reset for next delta
 					startTime = currentTime
 					totalCount = 0
 					sum = 0
-					min = 0
-					max = 0
+					min = math.MaxFloat64  // Set to max possible float value for correct min calculation in next round
+					max = -math.MaxFloat64 // Set to min possible value for correct max calculation in next round
 					zeroCount = 0
 					positiveBuckets = make(map[int32]uint64)
 					negativeBuckets = make(map[int32]uint64)
@@ -201,8 +208,9 @@ func mapToIndex(value float64, scale int32) int32 {
 		return 0
 	}
 	absValue := math.Abs(value)
-	scaleFactor := math.Ldexp(math.Log2E, int(scale))
-	return int32(math.Floor(math.Log(absValue) * scaleFactor))
+	// Calculate the base: 2^(2^(-scale))
+	base := math.Exp2(math.Exp2(-float64(scale)))
+	return int32(math.Floor(math.Log(absValue) / math.Log(base)))
 }
 
 func processExponentialHistogramDataPoint(dataPoint ExponentialHistogramDataPoint, logger *zap.Logger) {
