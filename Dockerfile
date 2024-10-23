@@ -15,4 +15,4 @@ FROM cgr.dev/chainguard/static:latest
 
 COPY --from=builder /usr/bin/otelgen /
 
-CMD ["/otelgen"]
+ENTRYPOINT ["/otelgen"]
