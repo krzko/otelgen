@@ -20,6 +20,12 @@ func initLogger(c *cli.Context) error {
 	switch c.String("log-level") {
 	case "debug":
 		cfg = zap.NewDevelopmentConfig()
+	case "warn":
+		cfg = zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	case "error":
+		cfg = zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	default:
 		cfg = zap.NewProductionConfig()
 	}
