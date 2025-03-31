@@ -30,29 +30,29 @@ The following specifications are supported.
 
 ## Getting Started
 
-Installing `otelgen` is possible via several methods. It can be insatlled via `brew`, an binary downloaded from GitHub [Releases](https://github.com/krzko/otelgen/releases), or running it as a distroless multi-arch docker image.
-
-### brew
-
-Install [brew](https://brew.sh/) and then run:
-
-```sh
-brew install krzko/tap/otelgen
-```
-
-### Download Binary
-
-Download the latest version from the [Releases](https://github.com/krzko/otelgen/releases) page.
-
-### Docker
-
-To see all the tags view the [Packages](https://github.com/krzko/proto2yaml/pkgs/container/proto2yaml) page.
-
-Rn the container via the following command:
-
-```sh
-docker run --rm ghcr.io/krzko/otelgen:latest -h
-```
+  Installing `otelgen` is possible via several methods. It can be insatlled via `brew`, an binary downloaded from GitHub [Releases](https://github.com/krzko/otelgen/releases), or running it as a distroless multi-arch docker image.
+  
+  ### brew
+  
+  Install [brew](https://brew.sh/) and then run:
+  
+  ```sh
+  brew install krzko/tap/otelgen
+  ```
+  
+  ### Download Binary
+  
+  Download the latest version from the [Releases](https://github.com/krzko/otelgen/releases) page.
+  
+  ### Docker
+  
+  To see all the tags view the [Packages](https://github.com/krzko/otelgen/pkgs/container/otelgen) page.
+  
+  Rn the container via the following command:
+  
+  ```sh
+  docker run --rm ghcr.io/krzko/otelgen:latest -h
+  ```
 
 ## Run
 
