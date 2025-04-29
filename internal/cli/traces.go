@@ -59,7 +59,7 @@ func genTracesCommand() *cli.Command {
 					&cli.StringSliceFlag{
 						Name:    "scenarios",
 						Aliases: []string{"s"},
-						Usage:   "The trace scenarios to simulate (basic, web_request, mobile_request, event_driven, pub_sub, microservices, database_operation)",
+						Usage:   "The trace scenarios to simulate (basic, eventing, microservices, web_mobile)",
 						Value:   cli.NewStringSlice("basic"),
 					},
 					&cli.IntFlag{
