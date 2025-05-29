@@ -1,69 +1,373 @@
-# otelgen
+# trazr-gen
 
-A tool to generate synthetic OpenTelemetry logs, metrics and traces.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Go Reference](https://pkg.go.dev/badge/github.com/medxops/trazr-gen.svg)](https://pkg.go.dev/github.com/medxops/trazr-gen)
+[![codecov](https://codecov.io/gh/<your-org>/<your-repo>/branch/main/graph/badge.svg)](https://codecov.io/gh/<your-org>/<your-repo>)
 
-## Why
+---
 
-Often synthetics are used to validate  certain configurations, to ensure that that systems operate as expected. Operating [OpenTelemetry Collectors](https://opentelemetry.io/docs/collector/) is often a complex task, which entails tuning many facets such as [Receivers](https://opentelemetry.io/docs/collector/configuration/#receivers), [Proccessors](https://opentelemetry.io/docs/collector/configuration/#processors) and [Exporters](https://opentelemetry.io/docs/collector/configuration/#processors).
+> **GPG Verification:** [Download the public GPG key](https://github.com/medxops/trazr-gen/raw/main/public.key) to verify signed releases and checksums.
 
-`otelgen` allows you to quickly validate these configurations using the [OpenTelemetry Protocol Specification](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md), which supports both [OTLP/gRPC](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md#otlpgrpc) and [OTLP/HTTP](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md#otlphttp) using the [OTLP Receiver](https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver/otlpreceiver).
+---
+
+**trazr-gen** is a modern, security-conscious tool for generating synthetic OpenTelemetry logs, metrics, and traces. It is designed for:
+- Validating observability pipelines, masking, and alerting rules
+- Testing OpenTelemetry Collector and backend configurations
+- Simulating realistic workloads, including the injection of fake/test sensitive data (PII/PHI/credentials)
+- Enabling security and compliance teams to audit and verify data handling in observability systems
+
+trazr-gen is safe for use in any environment: **all sensitive data is fake/test only** and never real.
+
+---
+
+## Table of Contents
+- [Security Note](#security-note)
+- [Quick Start](#quick-start)
+- [Supported Signals](#supported-signals)
+- [Attribute-driven Data Injection](#attribute-driven-data-injection)
+- [Trace Scenarios](#trace-scenarios)
+- [Sensitive Attribute Keys](#sensitive-attribute-keys)
+- [Loading Sensitive Data from a Config File](#loading-sensitive-data-from-a-config-file)
+- [Observability & Security Best Practices](#observability--security-best-practices)
+- [Getting Started](#getting-started)
+- [Run](#run)
+- [CLI Usage: Global vs. Subcommand Flags](#cli-usage-global-vs-subcommand-flags)
+- [Configuration Parameters](#configuration-parameters)
+- [Metrics-Specific Parameters](#metrics-specific-parameters)
+- [Metrics Subcommands](#metrics-subcommands)
+- [Getting Help](#getting-help)
+
+---
+
+## Security Note
+
+🚨 **All sensitive data attributes used in this project are FAKE/TEST values.**
+- No real PII, PHI, or secrets are present in the codebase.
+- These values are for testing, validation, and observability pipeline development only.
+- **Never use real customer or production data in synthetic generators or test code.**
+
+---
+
+# Quick Start
+
+Generate a single trace with sensitive data:
+```sh
+trazr-gen traces single --output localhost:4317 --attributes sensitive
+```
+
+Generate multiple logs with sensitive data:
+```sh
+trazr-gen logs multi --output localhost:4317 --attributes sensitive
+```
+
+Override sensitive data with a YAML config:
+```sh
+trazr-gen traces single --output localhost:4317 --attributes sensitive --config path/to/trazrgen.yaml
+```
+
+---
 
 ## Supported Signals
 
-The following specifications are supported.
+- **Traces:** Simulate different trace patterns, span events, and links.
+- **Metrics:** Exponential histogram, gauge, histogram, sum, exemplars.
+- **Logs:** Log levels, log attributes, trace context correlation.
 
-- [X] Traces: Yes
-  - Scenarios to simulate differnt trace patterns
-  - Span Events
-  - Span Links
-- [X] Metrics: Yes
-  - Metric Types:
-    - Exponential Histogram
-    - Guage
-    - Histogram
-    - Sum
-  - Exemplars
-- [X] Logs: Yes
-  - Log Levels
-  - Log Attributes
-  - Trace Context Correlation
+## Configuration Parameters
+
+All parameters can be set via CLI flags, config file, or environment variables.
+
+| Parameter            | Type                | Description                                                                                 | Default                        |
+|----------------------|---------------------|---------------------------------------------------------------------------------------------|-------------------------------|
+| `--service-name`     | `string`            | Name of the service to use in generated telemetry.                                           | `"trazr-gen"`                |
+| `--duration`         | `time.Duration`     | Total duration to run the generator (e.g., `10s`, `1m`). Must be non-negative.              | `0` (unbounded if count is also 0) |
+| `--output`           | `string`            | OTLP endpoint or output target (e.g., `localhost:4317`).                                    | `"terminal"`                 |
+| `--insecure`         | `bool`              | Use insecure (non-TLS) connection for OTLP.                                                 | `false`                       |
+| `--use-http`         | `bool`              | Use HTTP instead of gRPC for OTLP.                                                          | `false`                       |
+| `--headers`          | `map[string]string` | Additional OTLP headers as key-value pairs.                                                 | `{}`                          |
+| `--attributes`       | `[]string`          | List of attribute keys to inject (e.g., `sensitive`).                                       | `[]`                          |
+| `--rate`             | `float64`           | Number of events (logs, traces, metrics) generated per second. 0 means unthrottled.         | `1`                           |
+
+### Logs-Specific Parameters
+
+| Parameter        | Type    | Description                                                        | Default |
+|------------------|---------|--------------------------------------------------------------------|---------|
+| `--num-logs`     | `int`   | Number of logs to generate. 0 = unbounded (unless --duration is set). | `0`     |
+
+### Traces-Specific Parameters
+
+| Parameter              | Type        | Description                                                        | Default                  |
+|------------------------|-------------|--------------------------------------------------------------------|--------------------------|
+| `--num-traces`         | `int`       | Number of traces to generate. 0 = unbounded (unless --duration is set). | `3` (multi), `1` (single) |
+| `--propagate-context`  | `bool`      | Whether to propagate context between spans.                        | `false` (single), `false` (multi) |
+| `--scenarios`          | `[]string`  | List of trace scenarios to run (e.g., `basic`).                    | `["basic"]`             |
+
+### Metrics-Specific Parameters
+
+All configuration for metrics is handled via common parameters.
+
+## Metrics Subcommands
+
+The `metrics` command supports the following subcommands, each simulating a different metric type:
+
+| Subcommand                | Alias   | Description                                                      |
+|---------------------------|---------|------------------------------------------------------------------|
+| `gauge`                   | `g`     | Generate metrics of type gauge (values that can go up and down)   |
+| `histogram`               | `hist`  | Generate metrics of type histogram (distribution of values)       |
+| `exponential-histogram`   | `ehist` | Generate metrics of type exponential histogram (high dynamic range)|
+| `sum`                     | `s`     | Generate metrics of type sum (additive values over time)          |
+
+### Example Usage
+
+```sh
+trazr-gen metrics gauge --output terminal --min 0 --max 100 --unit "1" --temporality cumulative
+trazr-gen metrics histogram --output terminal --bounds 1,5,10,25,50,100 --unit "ms"
+trazr-gen metrics exponential-histogram --output terminal --scale 2 --max-size 1000
+trazr-gen metrics sum --output terminal --monotonic true --unit "1"
+```
+
+### Subcommand-Specific Flags
+
+- **gauge**
+  - `--min` (float): Minimum value (default: 0)
+  - `--max` (float): Maximum value (default: 100)
+  - `--unit` (string): Unit of measurement (default: "1")
+  - `--temporality` (string): "delta" or "cumulative" (default: "cumulative")
+
+- **histogram**
+  - `--bounds` (float list): Bucket boundaries (default: 1,5,10,25,50,100,250,500,1000)
+  - `--unit` (string): Unit of measurement (default: "ms")
+  - `--temporality` (string): "delta" or "cumulative" (default: "cumulative")
+  - `--record-minmax` (bool): Record min/max values (default: true)
+
+- **exponential-histogram**
+  - `--scale` (int): Scale factor for buckets (default: 0)
+  - `--max-size` (float): Maximum value to generate (default: 1000)
+  - `--zero-threshold` (float): Threshold for zero bucket (default: 1e-6)
+  - `--unit` (string): Unit of measurement (default: "ms")
+  - `--temporality` (string): "delta" or "cumulative" (default: "cumulative")
+  - `--record-minmax` (bool): Record min/max values (default: true)
+
+- **sum**
+  - `--monotonic` (bool): Whether the sum is monotonic (default: true)
+  - `--unit` (string): Unit of measurement (default: "1")
+  - `--temporality` (string): "delta" or "cumulative" (default: "cumulative")
+
+### Temporality
+
+The `--temporality` flag controls how metric values are aggregated and reported:
+
+- **Accepted values:** `cumulative` (default), `delta`
+- **Cumulative:** Reports the total value since the start of the process or instrument.
+- **Delta:** Reports the change in value since the last export interval.
+
+**Default:** If not specified, `cumulative` is used.
+
+#### Supported and Recommended Usage
+- For most use cases, `cumulative` is recommended and is the default.
+- `delta` is supported for counters, updowncounters, and histograms, but may not be supported for all metric types or backends.
+- For gauges, only `cumulative` is supported. If you select `delta` for a gauge, a warning will be logged and the tool may fall back to `cumulative`.
+
+#### Example Usage
+
+```sh
+trazr-gen metrics gauge --temporality cumulative   # Default, recommended for most use cases
+trazr-gen metrics sum --temporality delta         # Use delta, if supported by your backend
+```
+
+#### Warnings
+- If you select `delta` temporality for a metric type or backend that does not support it, you will see a warning, and the tool may fall back to `cumulative`.
+- Always check your backend's documentation for supported temporalities.
+
+---
+
+**Notes:**
+- All durations are specified as Go duration strings (e.g., `10s`, `1m`).
+- The `Output` parameter is required for all signals.
+- The `Attributes` parameter can be used to inject special behaviors, such as fake sensitive data (`sensitive`).
+- For a full list of CLI flags and their usage, run `trazr-gen --help` or see the help for each subcommand.
+
+---
+
+## Attribute-driven Data Injection
+
+You can control special behaviors in trace and log generation using the `--attributes` flag. This allows you to inject sensitive (fake/test) data or other special patterns for pipeline validation and testing.
+
+### Available Attributes
+- `sensitive`: Randomly injects fake/test sensitive data (PII/PHI/credentials) into traces and logs, both as structured fields and sometimes in the log message body. More development is planned to augment the list of features for this parameter.
+
+### Meta-Attributes for Sensitive Data
+
+When sensitive data is injected (in traces or logs), the following two meta-attributes are automatically added:
+
+- `mock.sensitive.present` (boolean): `true` if any sensitive data was injected into the record (span or log).
+- `mock.sensitive.attributes` (string): a comma-separated list of the sensitive attribute keys injected (e.g., `user.ssn,user.email`).
+  - If a sensitive attribute is injected into the log body, its key is included in this list as well.
+
+These meta-attributes are present in both traces and logs, making it easy to audit, test, and filter for synthetic sensitive data in your observability pipeline.
+
+### Usage Examples
+
+> **Note:** The `--output` flag is required for all traces and logs commands.
+
+Generate a single trace with sensitive data:
+```sh
+trazr-gen traces single --output localhost:4317 --attributes sensitive
+```
+
+Generate multiple logs with sensitive data:
+```sh
+trazr-gen logs multi --output localhost:4317 --attributes sensitive
+```
+
+You can combine attributes as more are added:
+```sh
+trazr-gen traces multi --output localhost:4317 --attributes sensitive,latency
+```
+
+Override sensitive data with a YAML config:
+```sh
+trazr-gen traces single --output localhost:4317 --attributes sensitive --config path/to/trazrgen.yaml
+```
+
+### What is injected?
+When `--attributes sensitive` is used, the generator will randomly inject fake/test sensitive fields such as:
+- SSN, email, phone, address, name, DOB
+- Credit card, bank account
+- Medical record number, diagnosis code, medication
+- Auth tokens, IP addresses, URLs with PII/PHI
+- Biometric and image data
+
+**All values are fake/test and for validation only.**
+
+---
+
+## Trace Scenarios
+
+The following trace scenarios are available:
+
+| Scenario Name   | Description                                                                 | Sensitive Attribute Support |
+|-----------------|-----------------------------------------------------------------------------|----------------------------|
+| **basic**       | Simulates a simple client-server (ping-pong) interaction with two spans: a client "ping" and a server "pong". Supports injection of fake/test sensitive data if the `sensitive` attribute is set. | Yes                        |
+| **web_mobile**  | Simulates a web or mobile client making a request to a backend, including web server, app server, and database spans. Models user agents, device types, and realistic HTTP/database attributes. | No                         |
+| **eventing**    | Simulates an event-driven (producer/consumer) workflow, such as a Kafka or messaging system. Includes producer, consumer, and event processing spans, with realistic messaging attributes and links. | No                         |
+| **microservices** | Simulates a complex, multi-service, multi-span workflow across a variety of microservices (API gateway, auth, user, product, payment, etc.). Each span represents an operation in a different service, with random attributes and occasional errors. | No                         |
+
+**Notes:**
+- The `basic` scenario is the only one that supports injection of fake/test sensitive data via the `sensitive` attribute.
+- All other scenarios focus on realistic service-to-service, event-driven, or client-server traces, but do not inject sensitive data.
+
+---
+
+## Sensitive Attribute Keys
+When using `--attributes sensitive`, the following fake/test sensitive fields may be injected:
+
+- user.ssn
+- user.email
+- user.phone
+- user.address
+- user.dob
+- user.name
+- user.national_id
+- passport.number
+- driver_license.number
+- credit.card
+- bank.account
+- health_plan.beneficiary_number
+- medical_record.number
+- health.diagnosis_code
+- health.procedure_code
+- health.medication
+- device.serial_number
+- db.statement
+- url.full
+- http.request.header.authorization
+- http.request.header.x_patient_id
+- net.peer.ip
+- ip.address
+- web.url
+- biometric.fingerprint
+- image.full_face
+
+See `internal/attributes/sensitive.go` for the authoritative list and values.
+
+---
+
+## Loading Sensitive Data from a Config File
+
+You can override the built-in sensitive data table by providing a YAML config file with the `--config` flag. This works for both traces and logs.
+
+### Example YAML Config
+```yaml
+sensitive_data:
+  - key: user.ssn
+    value: "999-999-9999"
+  - key: user.email
+    value: "test@example.com"
+  # ... more ...
+```
+
+### Usage
+
+```sh
+trazr-gen traces single --attributes sensitive --config path/to/trazrgen.yaml
+trazr-gen logs multi --attributes sensitive --config path/to/trazrgen.yaml
+```
+
+- If provided, the config file **replaces** the built-in sensitive data table for the duration of the run.
+- If not provided, the built-in (fake/test) sensitive data is used.
+
+---
+
+## Observability & Security Best Practices
+
+- Use the `mock.sensitive.present` and `mock.sensitive.attributes` meta-attributes to:
+  - Audit and validate masking or redaction in downstream systems.
+  - Filter or alert on the presence of synthetic sensitive data in your observability pipeline.
+  - Test data loss prevention (DLP), SIEM, or compliance tooling.
+- Always keep the Security Note in mind: **never use real PII/PHI/secrets in test or synthetic data.**
+- Document and review all custom sensitive data loaded via config files.
+
+---
 
 ## Getting Started
 
-  Installing `otelgen` is possible via several methods. It can be insatlled via `brew`, an binary downloaded from GitHub [Releases](https://github.com/krzko/otelgen/releases), or running it as a distroless multi-arch docker image.
-  
-  ### brew
-  
-  Install [brew](https://brew.sh/) and then run:
-  
-  ```sh
-  brew install krzko/tap/otelgen
-  ```
-  
-  ### Download Binary
-  
-  Download the latest version from the [Releases](https://github.com/krzko/otelgen/releases) page.
-  
-  ### Docker
-  
-  To see all the tags view the [Packages](https://github.com/krzko/otelgen/pkgs/container/otelgen) page.
-  
-  Rn the container via the following command:
-  
-  ```sh
-  docker run --rm ghcr.io/krzko/otelgen:latest -h
-  ```
+Installing `trazr-gen` is possible via several methods. It can be installed via `brew`, a binary downloaded from GitHub [Releases](https://github.com/medxops/trazr-gen/releases), or running it as a distroless multi-arch docker image.
+
+### brew
+
+Install [brew](https://brew.sh/) and then run:
+
+```sh
+brew install medxops/tap/trazr-gen
+```
+
+### Download Binary
+
+Download the latest version from the [Releases](https://github.com/medxops/trazr-gen/releases) page.
+
+### Docker
+
+To see all the tags view the [Packages](https://github.com/medxops/trazr-gen/pkgs/container/trazr-gen) page.
+
+Run the container via the following command (remember to set --output):
+
+```sh
+docker run --rm ghcr.io/medxops/trazr-gen:latest traces single --output <your-output> vbutes sensitive
+```
+
+---
 
 ## Run
 
-Running `otelgen` will generate this help:
+Running `trazr-gen` will generate this help:
 
 ```sh
 NAME:
-   otelgen - A tool to generate synthetic OpenTelemetry logs, metrics and traces
+   trazr-gen - A tool to generate synthetic OpenTelemetry logs, metrics and traces
 
 USAGE:
-   otelgen [global options] command [command options] [arguments...]
+   trazr-gen command [command options] [arguments...]
 
 VERSION:
    develop
@@ -75,128 +379,19 @@ COMMANDS:
    help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --duration value, -d value           duration in seconds (default: 0)
-   --header value                       additional headers in 'key=value' format  (accepts multiple inputs)
-   --help, -h                           show help (default: false)
-   --insecure, -i                       whether to enable client transport security (default: false)
-   --log-level value                    log level used by the logger, one of: debug, info, warn, error (default: "info")
-   --otel-exporter-otlp-endpoint value  target URL to exporter endpoint
-   --protocol value, -p value           the transport protocol, one of: grpc, http (default: "grpc")
-   --rate value, -r value               rate in seconds (default: 5)
-   --service-name value, -s value       service name to use (default: "otelgen")
-   --version, -v                        print the version (default: false)
+   --help, -h     show help
+   --version, -v  print the version
+
+
+## Attribution
+
+This project is a fork of [krzko/otelgen](https://github.com/krzko/otelgen) by [krzko](https://github.com/krzko).
+The original project is licensed under the [Apache License 2.0](https://github.com/krzko/trazr-gen/blob/main/LICENSE).
+
+## License
+
+This project remains under the [Apache License 2.0](LICENSE).
+If you make significant changes, you may add your own copyright notice for your contributions, but the original code and all derivatives must retain the Apache 2.0 license and attribution.
+
 ```
-
-## Signals
-
-`otelgen` emits three types of signals, `logs`, `metrics` and `traces`. Each signal has a different set of options, which can be configured via the command line.
-
-### Traces
-
-The `otelgen traces` command supports two types of traces, `single` and `multi`, the difference being, sometimes you just want to send a single trace to validate a configuration. **Multi** will allow you configure the `duration` and `rate`.
-
-Here is an example, of how to generate a trace using `single`, with using secure transport:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 traces single
-
-{"level":"info","ts":1658747062.525185,"caller":"cli/traces.go:90","msg":"starting gRPC exporter"}
-{"level":"info","ts":1658747062.710507,"caller":"traces/config.go:58","msg":"generation of traces isn't being throttled"}
-{"level":"info","ts":1658747062.7106712,"caller":"traces/traces.go:43","msg":"starting traces","worker":0}
-{"level":"info","ts":1658747062.710735,"caller":"traces/traces.go:79","msg":"Trace","worker":0,"traceId":"9481f4c1a9099079c49ed14af2739b6d"}
-{"level":"info","ts":1658747062.710753,"caller":"traces/traces.go:80","msg":"Parent Span","worker":0,"spanId":"fd76b9e4265aecfc"}
-{"level":"info","ts":1658747062.7107708,"caller":"traces/traces.go:81","msg":"Child Span","worker":0,"spanId":"02267d8d1342d63a"}
-{"level":"info","ts":1658747062.710814,"caller":"traces/traces.go:92","msg":"traces generated","worker":0,"traces":2}
-{"level":"info","ts":1658747062.710835,"caller":"cli/traces.go:108","msg":"stop the batch span processor"}
-{"level":"info","ts":1658747062.742642,"caller":"cli/traces.go:99","msg":"stopping the exporter"}
-```
-
-If you're running a collector on `localhost`, use `--insecure` to enable **h2c** for OTLP/gRPC (4317/tcp) and **http** for OTLP/HTTP (4318/tcp), of how to generate a trace using `single`, with using insecure transport:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint localhost:4317 --insecure traces single
-```
-
-Here is an example, of how to generate a trace using `multi`, also, run `-h` to view the default values for each flag:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 10 --rate 1 traces multi
-
-{"level":"info","ts":1658747148.7179039,"caller":"cli/traces.go:203","msg":"starting gRPC exporter"}
-{"level":"info","ts":1658747148.908546,"caller":"traces/config.go:60","msg":"generation of traces is limited","per-second":1}
-{"level":"info","ts":1658747148.908957,"caller":"traces/config.go:81","msg":"generation duration","seconds":10}
-{"level":"info","ts":1658747148.910296,"caller":"traces/traces.go:43","msg":"starting traces","worker":0}
-{"level":"info","ts":1658747148.91046,"caller":"traces/traces.go:79","msg":"Trace","worker":0,"traceId":"e299fc2461e04ee3c97d4f59e9b5f67a"}
-{"level":"info","ts":1658747148.910481,"caller":"traces/traces.go:80","msg":"Parent Span","worker":0,"spanId":"0cefe413f4f5559a"}
-{"level":"info","ts":1658747148.910497,"caller":"traces/traces.go:81","msg":"Child Span","worker":0,"spanId":"0ff83ff196aa83de"}
-{"level":"info","ts":1658747148.91053,"caller":"traces/traces.go:43","msg":"starting traces","worker":0}
-{"level":"info","ts":1658747149.9106922,"caller":"traces/traces.go:79","msg":"Trace","worker":0,"traceId":"9161121ffb377ef3e7b1d1efdb88c5d3"}
-{"level":"info","ts":1658747149.910769,"caller":"traces/traces.go:80","msg":"Parent Span","worker":0,"spanId":"0aab1b9d6535bb84"}
-{"level":"info","ts":1658747149.910798,"caller":"traces/traces.go:81","msg":"Child Span","worker":0,"spanId":"665b66edc4c7e26e"}
-...
-```
-
-If you need to pass in additional HTTP headers to allow for authentication to vendor backends, simply utilise the `--header key=value` flag. The unit is a slice of headers so it accepts multiple headers during invocation. Such as:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
-    --header 'x-auth=xxxxxx' \
-    --header 'x-dataset=xxxxxx' \
-    traces single
-```
-
-### Metrics
-
-The `otelgen metrics` command supports many different **metric** types. Here is an example of how to generate metrics:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 metrics counter
-
-{"level":"info","ts":1658746679.286242,"caller":"cli/metrics_counter.go:70","msg":"starting gRPC exporter"}
-{"level":"info","ts":1658746679.46613,"caller":"cli/metrics_counter.go:87","msg":"Starting metrics generation"}
-{"level":"info","ts":1658746679.466242,"caller":"metrics/config.go:59","msg":"generation of metrics is limited","per-second":5}
-{"level":"info","ts":1658746679.467317,"caller":"metrics/metrics.go:47","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746684.4677298,"caller":"metrics/metrics.go:47","msg":"generating","name":"otelgen.metrics.counter"}
-...
-```
-
-Here is an example, of how to limit the `duration` in seconds of a generation process:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint otelcol.foo.bar:443 --duration 30 metrics counter
-
-{"level":"info","ts":1658746721.598725,"caller":"cli/metrics_counter.go:70","msg":"starting gRPC exporter"}
-{"level":"info","ts":1658746721.789262,"caller":"cli/metrics_counter.go:87","msg":"Starting metrics generation"}
-{"level":"info","ts":1658746721.789321,"caller":"metrics/config.go:59","msg":"generation of metrics is limited","per-second":5}
-{"level":"info","ts":1658746721.7894,"caller":"metrics/metrics.go:30","msg":"generation duration","seconds":30}
-{"level":"info","ts":1658746721.789411,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746726.7905679,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746731.790965,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746736.791102,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746741.791389,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746746.791574,"caller":"metrics/metrics.go:40","msg":"generating","name":"otelgen.metrics.counter"}
-{"level":"info","ts":1658746751.791806,"caller":"cli/metrics_counter.go:79","msg":"stopping the exporter"}
-```
-
-If you need to pass in additional HTTP headers to allow for authentication to vendor backends, simply utilise the `--header key=value` flag. The unit is a slice of headers so it accepts multiple headers during invocation. Such as:
-
-```sh
-$ otelgen --otel-exporter-otlp-endpoint api.vendor.xyz:443 \
-    --header 'x-auth=xxxxxx' \
-    --header 'x-dataset=xxxxxx' \
-    metrics counter
-```
-
-### Logs
-
-The `otelgen logs` command generates synthetic logs that simulate realistic workloads, useful for testing and validating observability pipelines.
-
-```sh
-$  otelgen --otel-exporter-otlp-endpoint localhost:4317 --insecure logs
-
-2024-09-29T15:03:10.092+1000	INFO	logs/logs.go:63	generation of logs is limited	{"per-second": 5}
-2024-09-29T15:03:10.093+1000	INFO	logs/logs.go:177	starting log generation	{"worker": 0, "worker_id": 0}
-2024-09-29T15:03:18.976+1000	INFO	logs/logs.go:138	log generation completed	{"total_logs": 30}
-```
-
 

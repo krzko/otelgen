@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"context"
 	"errors"
-	"time"
 
-	"github.com/krzko/otelgen/internal/metrics"
+	"github.com/medxops/trazr-gen/internal/metrics"
 	"github.com/urfave/cli/v2"
-	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/zap"
 )
@@ -17,7 +15,7 @@ var generateMetricsGaugeCommand = &cli.Command{
 	Usage:       "generate metrics of type gauge",
 	Description: "Gauge demonstrates how to measure a value that can go up and down",
 	Aliases:     []string{"g"},
-	Flags: []cli.Flag{
+	Flags: append(CommonMetricFlags,
 		&cli.StringFlag{
 			Name:  "temporality",
 			Usage: "Temporality defines the window that an aggregation was calculated over, one of: delta, cumulative",
@@ -42,45 +40,27 @@ var generateMetricsGaugeCommand = &cli.Command{
 			Usage: "Maximum value for the gauge",
 			Value: 100,
 		},
-	},
-	Action: func(c *cli.Context) error {
-		return generateMetricsGaugeAction(c)
-	},
+	),
+	Action: generateMetricsGaugeAction,
 }
 
 func generateMetricsGaugeAction(c *cli.Context) error {
-	if c.String("otel-exporter-otlp-endpoint") == "" {
-		return errors.New("'otel-exporter-otlp-endpoint' must be set")
+	if c.String("output") == "" {
+		return errors.New("'output' must be set")
 	}
 
-	metricsCfg := &metrics.Config{
-		TotalDuration: time.Duration(c.Int("duration") * int(time.Second)),
-		Endpoint:      c.String("otel-exporter-otlp-endpoint"),
-		Rate:          c.Int64("rate"),
-		ServiceName:   c.String("service-name"),
+	metricsCfg := BuildMetricsConfig(c)
+
+	if metricsCfg.Output == "terminal" || metricsCfg.Output == "stdout" {
+		return metrics.SimulateGauge(noop.NewMeterProvider(), metrics.GaugeConfig{}, metricsCfg, logger)
 	}
 
-	configureLogging(c)
-
-	grpcExpOpt, httpExpOpt := getExporterOptions(c, metricsCfg)
-
-	ctx := context.Background()
-
-	exp, err := createExporter(ctx, c, grpcExpOpt, httpExpOpt)
+	provider, err := SetupMetricProvider(c, metricsCfg)
 	if err != nil {
-		logger.Error("failed to obtain OTLP exporter", zap.Error(err))
 		return err
 	}
-	defer shutdownExporter(exp)
 
 	logger.Info("Starting metrics generation")
-
-	reader := metric.NewPeriodicReader(
-		exp,
-		metric.WithInterval(time.Duration(metricsCfg.Rate)*time.Second),
-	)
-
-	provider := createMeterProvider(reader, metricsCfg)
 
 	temporality := metricdata.CumulativeTemporality
 	if c.String("temporality") == "delta" {
@@ -104,7 +84,10 @@ func generateMetricsGaugeAction(c *cli.Context) error {
 		Temporality: temporality,
 	}
 
-	metrics.SimulateGauge(provider, gaugeConfig, metricsCfg, logger)
+	if err := metrics.SimulateGauge(provider, gaugeConfig, metricsCfg, logger); err != nil {
+		logger.Error("metrics gauge simulation failed", zap.Error(err))
+		return err
+	}
 
 	return nil
 }

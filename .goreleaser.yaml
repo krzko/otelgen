@@ -5,9 +5,20 @@ before:
     - go mod tidy
     - go generate ./...
 
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+signs:
+  - artifacts: checksum
+    args: ["--armor", "--detach-sign"]
+
+release:
+  draft: false
+  prerelease: auto
+
 builds:
-  - main: ./cmd/otelgen
-    binary: otelgen
+  - main: ./cmd/trazr-gen
+    binary: trazr-gen
     env: [CGO_ENABLED=0]
     goos:
       - linux
@@ -40,13 +51,13 @@ changelog:
     - Merge branch
 
 brews:
-  - name: otelgen
+  - name: trazr-gen
     repository:
-      owner: 'krzko'
+      owner: 'medxops'
       name: 'homebrew-tap'
-    homepage: https://github.com/krzko/otelgen
+    homepage: https://github.com/medxops/trazr-gen
     description: "A tool to generate synthetic OpenTelemetry logs, metrics and traces telemetry data."
     install: |
-      bin.install "otelgen"
+      bin.install "trazr-gen"
     test: |
-      system "#{bin}/otelgen -v"
+      system "#{bin}/trazr-gen -v"

@@ -1,7 +1,7 @@
 ### Custom ###
 
 /build
-/otelgen
+/trazr-gen
 
 # goreleaser
 dist/
@@ -31,6 +31,9 @@ dist/
 
 # Go workspace file
 go.work
+
+# VS Tools
+*.mdc
 
 ### Go Patch ###
 /vendor/
@@ -207,3 +210,4 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,linux,visualstudiocode,goland,go
+.env

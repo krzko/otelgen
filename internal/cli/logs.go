@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/krzko/otelgen/internal/logs"
+	"github.com/medxops/trazr-gen/internal/logs"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+var customLoggerFactory = newCustomLogger
 
 func genLogsCommand() *cli.Command {
 	return &cli.Command{
@@ -22,6 +24,22 @@ func genLogsCommand() *cli.Command {
 				Name:    "single",
 				Usage:   "generate a single log event",
 				Aliases: []string{"s"},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "output",
+						Usage: "OTLP output for logs export (or 'terminal' for stdout output)",
+						Value: "terminal",
+					},
+					&cli.StringSliceFlag{
+						Name:  "header",
+						Usage: "Headers to send with OTLP requests (format: key=value)",
+					},
+					&cli.StringSliceFlag{
+						Name:    "attributes",
+						Aliases: []string{"a"},
+						Usage:   "Special attributes to inject into generated logs (e.g., sensitive)",
+					},
+				},
 				Action: func(c *cli.Context) error {
 					return generateLogs(c, true)
 				},
@@ -31,6 +49,15 @@ func genLogsCommand() *cli.Command {
 				Usage:   "generate multiple logs",
 				Aliases: []string{"m"},
 				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "output",
+						Usage: "OTLP output for logs export (or 'terminal' for stdout output)",
+						Value: "terminal",
+					},
+					&cli.StringSliceFlag{
+						Name:  "header",
+						Usage: "Headers to send with OTLP requests (format: key=value)",
+					},
 					&cli.IntFlag{
 						Name:    "number",
 						Aliases: []string{"n"},
@@ -38,15 +65,14 @@ func genLogsCommand() *cli.Command {
 						Value:   0, // Default to 0, which means indefinite
 					},
 					&cli.IntFlag{
-						Name:    "workers",
-						Aliases: []string{"w"},
-						Usage:   "number of workers (goroutines) to run",
-						Value:   1,
-					},
-					&cli.IntFlag{
 						Name:    "duration",
 						Aliases: []string{"d"},
 						Usage:   "duration in seconds for how long to generate logs",
+					},
+					&cli.StringSliceFlag{
+						Name:    "attributes",
+						Aliases: []string{"a"},
+						Usage:   "Special attributes to inject into generated logs (e.g., sensitive)",
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -58,12 +84,12 @@ func genLogsCommand() *cli.Command {
 }
 
 func generateLogs(c *cli.Context, isSingle bool) error {
-	if c.String("otel-exporter-otlp-endpoint") == "" {
-		return errors.New("'otel-exporter-otlp-endpoint' must be set")
+	if c.String("output") == "" {
+		return errors.New("'output' must be set")
 	}
 
 	logsCfg := &logs.Config{
-		Endpoint:    c.String("otel-exporter-otlp-endpoint"),
+		Output:      c.String("output"),
 		ServiceName: c.String("service-name"),
 		Insecure:    c.Bool("insecure"),
 		UseHTTP:     c.String("protocol") == "http",
@@ -72,10 +98,8 @@ func generateLogs(c *cli.Context, isSingle bool) error {
 	// Handle single log generation
 	if isSingle {
 		logsCfg.NumLogs = 1
-		logsCfg.WorkerCount = 1
 	} else {
 		logsCfg.NumLogs = c.Int("number")
-		logsCfg.WorkerCount = c.Int("workers")
 		logsCfg.TotalDuration = time.Duration(c.Int("duration") * int(time.Second))
 		logsCfg.Rate = c.Float64("rate")
 
@@ -91,21 +115,24 @@ func generateLogs(c *cli.Context, isSingle bool) error {
 	for _, h := range c.StringSlice("header") {
 		kv := strings.SplitN(h, "=", 2)
 		if len(kv) != 2 {
-			return fmt.Errorf("header format must be 'key=value'")
+			return errors.New("header format must be 'key=value'")
 		}
 		headers[kv[0]] = kv[1]
 	}
 	logsCfg.Headers = headers
 
+	// Add attributes from CLI
+	logsCfg.Attributes = c.StringSlice("attributes")
+
 	// Set up logger without stack trace for warnings
-	logger, err := newCustomLogger()
+	customLogger, err := customLoggerFactory()
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %w", err)
 	}
 
 	// Run the log generation
-	if err := logs.Run(logsCfg, logger); err != nil {
-		logger.Error("failed to run logs generation", zap.Error(err))
+	if err := logs.Run(logsCfg, customLogger); err != nil {
+		customLogger.Error("logs generation failed", zap.Error(err))
 		return err
 	}
 

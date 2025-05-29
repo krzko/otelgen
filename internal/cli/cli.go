@@ -1,11 +1,10 @@
+// Package cli provides command-line interface utilities and commands for the trazr-gen application.
 package cli
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
 
-	"github.com/fatih/color"
+	"github.com/medxops/trazr-gen/internal/attributes"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 )
@@ -13,6 +12,13 @@ import (
 var logger *zap.Logger
 
 func initLogger(c *cli.Context) error {
+	// Load sensitive data config if provided
+	if configPath := c.String("config"); configPath != "" {
+		err := attributes.LoadSensitiveConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load sensitive config: %w", err)
+		}
+	}
 
 	var cfg zap.Config
 	var err error
@@ -25,27 +31,17 @@ func initLogger(c *cli.Context) error {
 	}
 	logger, err = cfg.Build()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to build zap logger: %w", err)
 	}
 
-	defer logger.Sync() // nolint: errcheck
+	defer logger.Sync() //nolint:errcheck
 
 	return err
 }
 
+// New creates a new CLI application with the provided version, commit, and date information.
 func New(version, commit, date string) *cli.App {
-	// Rainbow
-	c := []color.Attribute{color.FgRed, color.FgGreen, color.FgYellow, color.FgMagenta, color.FgCyan, color.FgWhite, color.FgHiRed, color.FgHiGreen, color.FgHiYellow, color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan, color.FgHiWhite}
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(c), func(i, j int) { c[i], c[j] = c[j], c[i] })
-	c0 := color.New(c[0]).SprintFunc()
-	c1 := color.New(c[1]).SprintFunc()
-	c2 := color.New(c[2]).SprintFunc()
-	c3 := color.New(c[3]).SprintFunc()
-	c4 := color.New(c[4]).SprintFunc()
-	c5 := color.New(c[5]).SprintFunc()
-	c6 := color.New(c[6]).SprintFunc()
-	name := fmt.Sprintf("%s%s%s%s%s%s%s", c0("o"), c1("t"), c2("e"), c3("l"), c4("g"), c5("e"), c6("n"))
+	name := "trazr-gen"
 
 	flags := getGlobalFlags()
 

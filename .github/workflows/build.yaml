@@ -10,7 +10,7 @@ on:
       - "**/.md"
 
 env:
-  REGISTRY_IMAGE: ghcr.io/krzko/otelgen
+  REGISTRY_IMAGE: ghcr.io/medxops/trazr-gen
 
 jobs:
   build:

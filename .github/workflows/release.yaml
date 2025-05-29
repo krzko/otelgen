@@ -23,6 +23,16 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Import GPG key
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Set GPG key trust
+        run: |
+          echo -e "5\ny\n" | gpg --command-fd 0 --edit-key 6E8C453EBABA12E3D280259AFE3AF46D1C90032A trust quit
+
       - name: Login to GitHub Packages Docker Registry
         uses: docker/login-action@v3
         with:

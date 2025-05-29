@@ -6,13 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
+// WorkerFunc defines the signature for a worker function that processes metrics.
 type WorkerFunc func(ctx context.Context)
 
+// Worker represents a worker that generates metrics.
 type Worker struct {
 	numMetrics     int             // how many metrics the worker has to generate (only when duration==0)
 	totalDuration  time.Duration   // how long to run the test for (overrides `numMetrics`)
@@ -43,31 +44,31 @@ func run(c *Config, logger *zap.Logger, workerFunc WorkerFunc) error {
 
 // Run runs the worker
 func (w *Worker) Run(ctx context.Context, workerFunc WorkerFunc) error {
+	// If no duration is set, default to 24 hours
 	if w.totalDuration == 0 {
-		// w.numMetrics = 0
 		w.totalDuration = 86400 * time.Second // 24 hours
-	} else if w.numMetrics == 0 {
-		w.logger.Error("either `metrics` or `duration` must be greater than 0")
-		return fmt.Errorf("either `metrics` or `duration` must be greater than 0")
 	}
 
-	running := atomic.NewBool(true)
+	// Wrap the context with a timeout for duration-based cancellation
+	var cancel context.CancelFunc
+	if w.totalDuration > 0 {
+		ctx, cancel = context.WithTimeout(ctx, w.totalDuration)
+		defer cancel()
+	}
+
 	errChan := make(chan error, 1)
 	for i := 0; i < 1; i++ {
 		w.wg.Add(1)
-
 		go func() {
 			defer w.wg.Done()
 			workerFunc(ctx)
 		}()
 	}
 
-	if w.totalDuration > 0 {
-		w.logger.Info("generation duration", zap.Float64("seconds", w.totalDuration.Seconds()))
-		w.logger.Info("generation rate", zap.Float64("per second", float64(w.limitPerSecond)))
-		time.Sleep(w.totalDuration)
-		running.Store(false)
-	}
+	w.logger.Info("generation duration", zap.Float64("seconds", w.totalDuration.Seconds()))
+	w.logger.Info("generation rate", zap.Float64("per second", float64(w.limitPerSecond)))
+
+	// Wait for all workers to finish (they should exit when ctx is done)
 	w.wg.Wait()
 
 	// Check if there's an error in the error channel

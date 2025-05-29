@@ -32,10 +32,9 @@ func getGlobalFlags() []cli.Flag {
 			Value: "info",
 		}),
 		altsrc.NewStringFlag(&cli.StringFlag{
-			Name:  "otel-exporter-otlp-endpoint",
-			Usage: "target URL to exporter endpoint",
-			// EnvVars: []string{"OTEL_EXPORTER_OTLP_ENDPOINT"},
-			// Required: true,
+			Name:  "output",
+			Usage: "target URL to exporter output (or 'terminal' for stdout output)",
+			Value: "terminal",
 		}),
 		altsrc.NewStringFlag(&cli.StringFlag{
 			Name:    "protocol",
@@ -55,7 +54,11 @@ func getGlobalFlags() []cli.Flag {
 			Usage:   "service name to use",
 			Aliases: []string{"s"},
 			// EnvVars: []string{"OTEL_SERVICE_NAME"},
-			Value: "otelgen",
+			Value: "trazr-gen",
+		}),
+		altsrc.NewStringFlag(&cli.StringFlag{
+			Name:  "config",
+			Usage: "Path to YAML config file for sensitive data overrides",
 		}),
 	}
 }

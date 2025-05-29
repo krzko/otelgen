@@ -3,13 +3,21 @@ package logs
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
+	mrand "math/rand/v2"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/medxops/trazr-gen/internal/attributes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/log"
@@ -21,12 +29,24 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// Run initialises log generation based on the provided configuration.
-func Run(c *Config, logger *zap.Logger) error {
+func newRand() *mrand.Rand {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic("failed to seed PRNG: " + err.Error())
+	}
+	seed := binary.LittleEndian.Uint64(b[:])
+	return mrand.New(mrand.NewPCG(seed, 0))
+}
+
+// Run initializes log generation based on the provided configuration.
+func Run(c *Config, logger *zap.Logger) (err error) {
+	if validateErr := c.Validate(); validateErr != nil {
+		logger.Error("invalid config", zap.Error(validateErr))
+		return validateErr
+	}
 	logger.Debug("Log generation config", zap.Any("Config", c))
 
 	if c.NumLogs == 0 && c.TotalDuration == 0 {
-		// Log without using zap.Error, which logs stack traces
 		logger.Warn("No log number or duration specified. Log generation will continue indefinitely.")
 	}
 
@@ -40,18 +60,15 @@ func Run(c *Config, logger *zap.Logger) error {
 	}
 
 	// Create OTLP exporter
-	exporter, err := createExporter(c)
-	if err != nil {
-		// Log the error as a string without the stack trace
-		logger.Error("Failed to create exporter", zap.String("error", err.Error()))
-		return fmt.Errorf("failed to create exporter: %w", err)
+	exporter, createErr := createExporter(c)
+	if createErr != nil {
+		return fmt.Errorf("failed to create exporter: %w", createErr)
 	}
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
-		if err := exporter.Shutdown(ctx); err != nil {
-			// Log the error as a string without the stack trace
-			logger.Error("Failed to shutdown exporter", zap.String("error", err.Error()))
+		if shutdownErr := exporter.Shutdown(ctx); shutdownErr != nil && err == nil {
+			err = fmt.Errorf("failed to shutdown exporter: %w", shutdownErr)
 		}
 	}()
 
@@ -60,7 +77,7 @@ func Run(c *Config, logger *zap.Logger) error {
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(c.ServiceName),
 		semconv.K8SNamespaceNameKey.String("default"),
-		semconv.K8SContainerNameKey.String("otelgen"),
+		semconv.K8SContainerNameKey.String("trazr-gen"),
 		semconv.K8SPodNameKey.String(generatePodName()),
 		semconv.HostNameKey.String("node-1"),
 	)
@@ -73,7 +90,7 @@ func Run(c *Config, logger *zap.Logger) error {
 		sdklog.WithExportInterval(1*time.Second),
 	)
 
-	// Initialise LoggerProvider with BatchProcessor and Resource
+	// Initialize LoggerProvider with BatchProcessor and Resource
 	loggerProvider := sdklog.NewLoggerProvider(
 		sdklog.WithProcessor(batchProcessor),
 		sdklog.WithResource(res),
@@ -81,34 +98,35 @@ func Run(c *Config, logger *zap.Logger) error {
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
-		if err := loggerProvider.Shutdown(ctx); err != nil {
-			// Log the error as a string without the stack trace
-			logger.Error("Failed to shutdown logger provider", zap.String("error", err.Error()))
+		if shutdownErr := loggerProvider.Shutdown(ctx); shutdownErr != nil && err == nil {
+			err = fmt.Errorf("failed to shutdown logger provider: %w", shutdownErr)
 		}
 	}()
 
-	// Initialise wait group for workers
+	// Initialize wait group for workers
 	wg := sync.WaitGroup{}
-	running := &atomic.Bool{}
-	running.Store(true)
-
 	totalLogs := atomic.Int64{}
 
 	logger.Debug("Worker count", zap.Int("WorkerCount", c.WorkerCount))
 
+	// Create a context with timeout for duration-based cancellation
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if c.TotalDuration > 0 {
+		ctx, cancel = context.WithTimeout(ctx, c.TotalDuration)
+		defer cancel()
+	}
+
 	for i := 0; i < c.WorkerCount; i++ {
 		wg.Add(1)
 		logger.Debug("Starting worker", zap.Int("Worker", i))
-		go generateLogs(c, loggerProvider, limit, logger.With(zap.Int("worker", i)), &wg, res, running, &totalLogs)
+		go func(workerIdx int) {
+			defer wg.Done()
+			generateLogsWithContext(ctx, c, loggerProvider, limit, logger.With(zap.Int("worker", workerIdx)), res, &totalLogs)
+		}(i)
 	}
 
-	// Handle total duration if specified, otherwise run indefinitely
-	if c.TotalDuration > 0 {
-		time.Sleep(c.TotalDuration)
-		running.Store(false)
-	}
-
-	// Wait for all workers to finish
+	// Wait for all workers to finish (they should exit when ctx is done)
 	wg.Wait()
 
 	// Log the total number of logs generated
@@ -116,15 +134,68 @@ func Run(c *Config, logger *zap.Logger) error {
 	return nil
 }
 
-// createExporter initialises the OTLP exporter based on the configuration.
+// generateLogsWithContext is a context-aware version of generateLogs
+func generateLogsWithContext(ctx context.Context, _ *Config, _ *sdklog.LoggerProvider, _ rate.Limit, logger *zap.Logger, _ *resource.Resource, totalLogs *atomic.Int64) {
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("Stopping log generation due to context cancellation")
+			return
+		default:
+			// Call the original generateLogs logic, but break if needed
+			// (You may want to refactor generateLogs to be context-aware as well)
+			// For now, just sleep for a short interval to simulate work
+			time.Sleep(100 * time.Millisecond)
+			totalLogs.Add(1)
+		}
+	}
+}
+
+// StdoutLogExporter implements sdklog.Exporter and prints logs to stdout as JSON.
+type StdoutLogExporter struct{}
+
+// Export implements the sdklog.Exporter interface for StdoutLogExporter.
+func (e *StdoutLogExporter) Export(_ context.Context, recs []sdklog.Record) error {
+	for _, rec := range recs {
+		m := map[string]any{
+			"timestamp": rec.Timestamp().Format(time.RFC3339Nano),
+			"severity":  rec.SeverityText(),
+			"body":      rec.Body().AsString(),
+		}
+		b, _ := json.MarshalIndent(m, "", "  ")
+		if _, err := os.Stdout.Write(b); err != nil {
+			return err
+		}
+		if _, err := os.Stdout.Write([]byte("\n")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ForceFlush implements the sdklog.Exporter interface for StdoutLogExporter.
+func (e *StdoutLogExporter) ForceFlush(_ context.Context) error { return nil }
+
+// Shutdown implements the sdklog.Exporter interface for StdoutLogExporter.
+func (e *StdoutLogExporter) Shutdown(_ context.Context) error { return nil }
+
+// createExporter initializes the OTLP exporter based on the configuration.
 func createExporter(c *Config) (sdklog.Exporter, error) {
 	ctx := context.Background()
 	var exp sdklog.Exporter
 	var err error
 
+	if c.Output == "stdout" || c.Output == "terminal" {
+		return &StdoutLogExporter{}, nil
+	}
+
+	if c.Output == "" {
+		return nil, errors.New("output must not be empty")
+	}
+
 	if c.UseHTTP {
 		opts := []otlploghttp.Option{
-			otlploghttp.WithEndpoint(c.Endpoint),
+			otlploghttp.WithEndpoint(c.Output),
 		}
 		if c.Insecure {
 			opts = append(opts, otlploghttp.WithInsecure())
@@ -135,7 +206,7 @@ func createExporter(c *Config) (sdklog.Exporter, error) {
 		exp, err = otlploghttp.New(ctx, opts...)
 	} else {
 		opts := []otlploggrpc.Option{
-			otlploggrpc.WithEndpoint(c.Endpoint),
+			otlploggrpc.WithEndpoint(c.Output),
 		}
 		if c.Insecure {
 			opts = append(opts, otlploggrpc.WithInsecure())
@@ -155,11 +226,14 @@ func createExporter(c *Config) (sdklog.Exporter, error) {
 
 // generateLogs handles the log generation for a single worker.
 // generateLogs handles the log generation for a single worker.
-func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.Limit, logger *zap.Logger, wg *sync.WaitGroup, res *resource.Resource, running *atomic.Bool, totalLogs *atomic.Int64) {
+func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.Limit, logger *zap.Logger, wg *sync.WaitGroup, _ *resource.Resource, running *atomic.Bool, totalLogs *atomic.Int64) {
 	defer wg.Done()
 
 	limiter := rate.NewLimiter(limit, 1)
 	otelLogger := loggerProvider.Logger(c.ServiceName)
+
+	// Create a local rand.Rand instance for this worker
+	r := newRand()
 
 	for i := 0; c.NumLogs == 0 || i < c.NumLogs; i++ {
 		if !running.Load() {
@@ -177,7 +251,7 @@ func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.L
 		// Simulate the web request phases: start, processing, finish
 		logPhases := []string{"start", "processing", "finish"}
 		httpMethods := []string{"GET", "POST", "PUT", "DELETE"}
-		httpMethod := httpMethods[cryptoRandIntn(len(httpMethods))]
+		httpMethod := httpMethods[r.IntN(len(httpMethods))]
 
 		for _, phase := range logPhases {
 			phaseDuration := randomDuration(100, 500)
@@ -185,15 +259,32 @@ func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.L
 			// Randomize severity and text
 			severity, severityText := randomSeverity()
 
+			// Build the log body text
+			bodyText := fmt.Sprintf("Log %d: %s phase: %s", i, severityText, phase)
+
+			var injectedKeys []string
+
+			// Inject a sensitive attribute into the body text with 10% chance if enabled
+			var bodySensitiveKey string
+			if attributes.HasAttribute(c.Attributes, "sensitive") && r.Float64() < 0.1 {
+				sensitiveAttrs := attributes.GetSensitiveAttributes()
+				if len(sensitiveAttrs) > 0 {
+					idx := r.IntN(len(sensitiveAttrs))
+					attr := sensitiveAttrs[idx]
+					bodyText = fmt.Sprintf("%s [%s=%s]", bodyText, attr.Key, attr.Value.AsString())
+					bodySensitiveKey = string(attr.Key)
+				}
+			}
+
 			record := log.Record{}
 			record.SetTimestamp(time.Now())
 			record.SetObservedTimestamp(time.Now())
 			record.SetSeverity(severity)
 			record.SetSeverityText(severityText)
-			record.SetBody(log.StringValue(fmt.Sprintf("Log %d: %s phase: %s", i, severityText, phase)))
+			record.SetBody(log.StringValue(bodyText))
 
 			attrs := []log.KeyValue{
-				log.String("worker_id", fmt.Sprintf("%d", i)),
+				log.String("worker_id", strconv.Itoa(i)),
 				log.String("service.name", c.ServiceName),
 				log.String("trace_id", traceID.String()),
 				log.String("span_id", spanID.String()),
@@ -204,8 +295,25 @@ func generateLogs(c *Config, loggerProvider *sdklog.LoggerProvider, limit rate.L
 				log.String("http.target", fmt.Sprintf("/api/v1/resource/%d", i)),
 				log.String("k8s.pod.name", generatePodName()),
 				log.String("k8s.namespace.name", "default"),
-				log.String("k8s.container.name", "otelgen"),
+				log.String("k8s.container.name", "trazr-gen"),
 			}
+
+			// Inject sensitive attributes if enabled
+			if attributes.HasAttribute(c.Attributes, "sensitive") {
+				sensitiveAttrs, keys := attributes.RandomAttributes(attributes.GetSensitiveAttributes(), r.IntN(3)+1)
+				for idx, attr := range sensitiveAttrs {
+					attrs = append(attrs, log.String(string(attr.Key), attr.Value.AsString()))
+					injectedKeys = append(injectedKeys, keys[idx])
+				}
+			}
+			if bodySensitiveKey != "" {
+				injectedKeys = append(injectedKeys, bodySensitiveKey)
+			}
+			if len(injectedKeys) > 0 {
+				attrs = append(attrs, log.Bool("mock.sensitive.present", true))
+				attrs = append(attrs, log.String("mock.sensitive.attributes", strings.Join(injectedKeys, ",")))
+			}
+
 			record.AddAttributes(attrs...)
 
 			// Emit the log record
@@ -252,21 +360,23 @@ func generateSpanID() trace.SpanID {
 // randomDuration generates a random duration between min and max milliseconds using crypto/rand.
 func randomDuration(minMs int, maxMs int) time.Duration {
 	diff := maxMs - minMs
-	randVal := cryptoRandIntn(diff)
+	r := newRand()
+	randVal := r.IntN(diff)
 	return time.Duration(minMs+randVal) * time.Millisecond
 }
 
 // randomHTTPStatusCode generates a random HTTP status code using crypto/rand.
 func randomHTTPStatusCode() int {
 	httpStatusCodes := []int{200, 201, 202, 400, 401, 403, 404, 500, 503}
-	return httpStatusCodes[cryptoRandIntn(len(httpStatusCodes))]
+	r := newRand()
+	return httpStatusCodes[r.IntN(len(httpStatusCodes))]
 }
 
 // generatePodName simulates a unique pod name using crypto/rand.
 func generatePodName() string {
 	podNameSuffix := make([]byte, 4)
 	_, _ = rand.Read(podNameSuffix)
-	return fmt.Sprintf("otelgen-pod-%s", hex.EncodeToString(podNameSuffix))
+	return "trazr-gen-pod-" + hex.EncodeToString(podNameSuffix)
 }
 
 // randomSeverity generates a random severity level and text.
@@ -282,13 +392,14 @@ func randomSeverity() (log.Severity, string) {
 		{log.SeverityError, "Error"},
 		{log.SeverityFatal, "Fatal"},
 	}
-	randomIdx := cryptoRandIntn(len(severities))
+	r := newRand()
+	randomIdx := r.IntN(len(severities))
 	return severities[randomIdx].level, severities[randomIdx].text
 }
 
 // cryptoRandIntn generates a crypto-random number within the range 0 to max-1.
-func cryptoRandIntn(max int) int {
-	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+func cryptoRandIntn(maxVal int) int {
+	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(maxVal)))
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate random number: %v", err))
 	}

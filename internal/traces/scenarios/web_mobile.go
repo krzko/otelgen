@@ -3,7 +3,6 @@ package scenarios
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -12,14 +11,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func WebMobileScenario(ctx context.Context, tracer trace.Tracer, logger *zap.Logger, serviceName string) error {
+// WebMobileScenario simulates a web/mobile client-server trace scenario for testing and demonstration purposes.
+func WebMobileScenario(ctx context.Context, tracer trace.Tracer, _ *zap.Logger, serviceName string, _ []string) error {
 	clientTypes := []string{"web_browser", "ios_app", "android_app"}
-	clientType := clientTypes[rand.Intn(len(clientTypes))]
+	r := NewRand()
+	clientType := clientTypes[r.IntN(len(clientTypes))]
 
-	clientServiceName := fmt.Sprintf("%s-web-mobile", serviceName)
-	webServerServiceName := fmt.Sprintf("%s-web-server", serviceName)
-	appServerServiceName := fmt.Sprintf("%s-app-server", serviceName)
-	dbServerServiceName := fmt.Sprintf("%s-web-server", serviceName)
+	clientServiceName := serviceName + "-web-mobile"
+	webServerServiceName := serviceName + "-web-server"
+	appServerServiceName := serviceName + "-app-server"
+	dbServerServiceName := serviceName + "-web-server"
 
 	var userAgent, deviceModel, osName, osVersion string
 	switch clientType {
@@ -77,11 +78,11 @@ func WebMobileScenario(ctx context.Context, tracer trace.Tracer, logger *zap.Log
 		semconv.EventName("http.request.received"),
 		semconv.HTTPRequestBodySize(1024),
 	))
-	time.Sleep(time.Duration(rand.Intn(50)) * time.Millisecond)
+	time.Sleep(time.Duration(r.IntN(50)) * time.Millisecond)
 	webSpan.End()
 
-	// Application Endpoint
-	ctx, appSpan := tracer.Start(ctx, "app_endpoint",
+	// Application output
+	ctx, appSpan := tracer.Start(ctx, "app_output",
 		trace.WithAttributes(
 			semconv.ServiceNameKey.String(appServerServiceName),
 			semconv.ServiceNameKey.String("data-service"),
@@ -90,7 +91,7 @@ func WebMobileScenario(ctx context.Context, tracer trace.Tracer, logger *zap.Log
 		),
 	)
 	appSpan.AddEvent("processing_started")
-	time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+	time.Sleep(time.Duration(r.IntN(100)) * time.Millisecond)
 	appSpan.AddEvent("processing_completed")
 	appSpan.End()
 
@@ -105,7 +106,7 @@ func WebMobileScenario(ctx context.Context, tracer trace.Tracer, logger *zap.Log
 			semconv.DBSystemPostgreSQL,
 		),
 	)
-	time.Sleep(time.Duration(rand.Intn(75)) * time.Millisecond)
+	time.Sleep(time.Duration(r.IntN(75)) * time.Millisecond)
 	dbSpan.End()
 
 	rootSpan.SetStatus(codes.Ok, "")

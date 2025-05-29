@@ -3,21 +3,18 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	"google.golang.org/grpc"
 
-	"github.com/krzko/otelgen/internal/traces"
+	"github.com/medxops/trazr-gen/internal/traces"
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -34,6 +31,27 @@ func genTracesCommand() *cli.Command {
 				Usage:   "generate a single trace",
 				Aliases: []string{"s"},
 				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "output",
+						Usage: "OTLP output for traces export (or 'terminal' for stdout output)",
+						Value: "terminal",
+					},
+					&cli.StringSliceFlag{
+						Name:  "header",
+						Usage: "Headers to send with OTLP requests (format: key=value)",
+					},
+					&cli.StringFlag{
+						Name:  "service-name",
+						Usage: "Service name for traces",
+					},
+					&cli.StringFlag{
+						Name:  "protocol",
+						Usage: "Protocol to use (grpc or http)",
+					},
+					&cli.BoolFlag{
+						Name:  "insecure",
+						Usage: "Use insecure connection",
+					},
 					&cli.BoolFlag{
 						Name:    "marshal",
 						Aliases: []string{"m"},
@@ -46,6 +64,11 @@ func genTracesCommand() *cli.Command {
 						Usage:   "The trace scenario to simulate (basic, eventing, microservices, web_mobile)",
 						Value:   "basic",
 					},
+					&cli.StringSliceFlag{
+						Name:    "attributes",
+						Aliases: []string{"a"},
+						Usage:   "Special attributes to inject into generated data (e.g., sensitive)",
+					},
 				},
 				Action: func(c *cli.Context) error {
 					return generateTraces(c, true)
@@ -56,6 +79,27 @@ func genTracesCommand() *cli.Command {
 				Usage:   "generate multiple traces",
 				Aliases: []string{"m"},
 				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "output",
+						Usage: "OTLP output for traces export (or 'terminal' for stdout output)",
+						Value: "terminal",
+					},
+					&cli.StringSliceFlag{
+						Name:  "header",
+						Usage: "Headers to send with OTLP requests (format: key=value)",
+					},
+					&cli.StringFlag{
+						Name:  "service-name",
+						Usage: "Service name for traces",
+					},
+					&cli.StringFlag{
+						Name:  "protocol",
+						Usage: "Protocol to use (grpc or http)",
+					},
+					&cli.BoolFlag{
+						Name:  "insecure",
+						Usage: "Use insecure connection",
+					},
 					&cli.StringSliceFlag{
 						Name:    "scenarios",
 						Aliases: []string{"s"},
@@ -69,10 +113,21 @@ func genTracesCommand() *cli.Command {
 						Value:   3,
 					},
 					&cli.IntFlag{
-						Name:    "workers",
-						Aliases: []string{"w"},
-						Usage:   "number of workers (goroutines) to run",
-						Value:   1,
+						Name:  "duration",
+						Usage: "duration in seconds for how long to generate traces",
+					},
+					&cli.Float64Flag{
+						Name:  "rate",
+						Usage: "rate of trace generation (per second)",
+					},
+					&cli.BoolFlag{
+						Name:  "marshal",
+						Usage: "marshal trace context via HTTP headers",
+					},
+					&cli.StringSliceFlag{
+						Name:    "attributes",
+						Aliases: []string{"a"},
+						Usage:   "Special attributes to inject into generated data (e.g., sensitive)",
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -84,12 +139,12 @@ func genTracesCommand() *cli.Command {
 }
 
 func generateTraces(c *cli.Context, isSingle bool) error {
-	if c.String("otel-exporter-otlp-endpoint") == "" {
-		return errors.New("'otel-exporter-otlp-endpoint' must be set")
+	if c.String("output") == "" {
+		return errors.New("'output' must be set")
 	}
 
 	tracesCfg := &traces.Config{
-		Endpoint:    c.String("otel-exporter-otlp-endpoint"),
+		Output:      c.String("output"),
 		ServiceName: c.String("service-name"),
 		Insecure:    c.Bool("insecure"),
 		UseHTTP:     c.String("protocol") == "http",
@@ -97,17 +152,18 @@ func generateTraces(c *cli.Context, isSingle bool) error {
 
 	if isSingle {
 		tracesCfg.NumTraces = 1
-		tracesCfg.WorkerCount = 1
 		tracesCfg.Scenarios = []string{c.String("scenario")}
 		tracesCfg.PropagateContext = c.Bool("marshal")
 	} else {
 		tracesCfg.TotalDuration = time.Duration(c.Int("duration") * int(time.Second))
-		tracesCfg.Rate = c.Int64("rate")
+		tracesCfg.Rate = c.Float64("rate")
 		tracesCfg.NumTraces = c.Int("number-traces")
-		tracesCfg.WorkerCount = c.Int("workers")
 		tracesCfg.Scenarios = c.StringSlice("scenarios")
 		tracesCfg.PropagateContext = c.Bool("marshal")
 	}
+
+	// Add attributes from CLI
+	tracesCfg.Attributes = c.StringSlice("attributes")
 
 	if c.String("log-level") == "debug" {
 		grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
@@ -115,63 +171,55 @@ func generateTraces(c *cli.Context, isSingle bool) error {
 		))
 	}
 
-	grpcExpOpt := []otlptracegrpc.Option{
-		otlptracegrpc.WithEndpoint(tracesCfg.Endpoint),
-		otlptracegrpc.WithDialOption(
-			grpc.WithBlock(),
-		),
-	}
-
-	httpExpOpt := []otlptracehttp.Option{
-		otlptracehttp.WithEndpoint(tracesCfg.Endpoint),
-	}
-
-	if tracesCfg.Insecure {
-		grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithInsecure())
-		httpExpOpt = append(httpExpOpt, otlptracehttp.WithInsecure())
-	}
-
-	if len(c.StringSlice("header")) > 0 {
-		headers := make(map[string]string)
-		for _, h := range c.StringSlice("header") {
-			kv := strings.SplitN(h, "=", 2)
-			if len(kv) != 2 {
-				return fmt.Errorf("value should be of the format key=value")
-			}
-			headers[kv[0]] = kv[1]
-		}
-		grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(headers))
-		httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(headers))
-		tracesCfg.Headers = headers
-	}
-
-	var exp *otlptrace.Exporter
+	var spanExporter sdktrace.SpanExporter
 	var err error
-	if tracesCfg.UseHTTP {
-		logger.Info("starting HTTP exporter")
-		exp, err = otlptracehttp.New(context.Background(), httpExpOpt...)
+	if tracesCfg.Output == "stdout" || tracesCfg.Output == "terminal" {
+		spanExporter = &traces.StdoutSpanExporter{}
 	} else {
-		logger.Info("starting gRPC exporter")
-		exp, err = otlptracegrpc.New(context.Background(), grpcExpOpt...)
-	}
-
-	if err != nil {
-		logger.Error("failed to obtain OTLP exporter", zap.Error(err))
-		return err
+		grpcExpOpt := []otlptracegrpc.Option{
+			otlptracegrpc.WithEndpoint(tracesCfg.Output),
+		}
+		httpExpOpt := []otlptracehttp.Option{
+			otlptracehttp.WithEndpoint(tracesCfg.Output),
+		}
+		if tracesCfg.Insecure {
+			grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithInsecure())
+			httpExpOpt = append(httpExpOpt, otlptracehttp.WithInsecure())
+		}
+		if len(c.StringSlice("header")) > 0 {
+			headers := make(map[string]string)
+			for _, h := range c.StringSlice("header") {
+				kv := strings.SplitN(h, "=", 2)
+				if len(kv) != 2 {
+					return errors.New("value should be of the format key=value")
+				}
+				headers[kv[0]] = kv[1]
+			}
+			grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(headers))
+			httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(headers))
+			tracesCfg.Headers = headers
+		}
+		if tracesCfg.UseHTTP {
+			logger.Info("starting HTTP exporter")
+			spanExporter, err = otlptracehttp.New(context.Background(), httpExpOpt...)
+		} else {
+			logger.Info("starting gRPC exporter")
+			spanExporter, err = otlptracegrpc.New(context.Background(), grpcExpOpt...)
+		}
+		if err != nil {
+			logger.Error("failed to obtain OTLP exporter", zap.Error(err))
+			return err
+		}
 	}
 	defer func() {
-		logger.Info("stopping the exporter")
-		if err = exp.Shutdown(context.Background()); err != nil {
-			logger.Error("failed to stop the exporter", zap.Error(err))
+		if spanExporter != nil {
+			_ = spanExporter.Shutdown(context.Background())
 		}
 	}()
 
-	ssp := sdktrace.NewBatchSpanProcessor(exp, sdktrace.WithBatchTimeout(time.Second))
+	ssp := sdktrace.NewBatchSpanProcessor(spanExporter, sdktrace.WithBatchTimeout(time.Second))
 	defer func() {
-		logger.Info("stop the batch span processor")
-		if err := ssp.Shutdown(context.Background()); err != nil {
-			logger.Error("failed to stop the batch span processor", zap.Error(err))
-		}
+		_ = ssp.Shutdown(context.Background())
 	}()
 
 	tracerProvider := sdktrace.NewTracerProvider(
@@ -183,6 +231,7 @@ func generateTraces(c *cli.Context, isSingle bool) error {
 
 	if err := traces.Run(tracesCfg, logger); err != nil {
 		logger.Error("failed to run traces", zap.Error(err))
+		return err
 	}
 
 	return nil

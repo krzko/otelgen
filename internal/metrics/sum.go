@@ -1,9 +1,9 @@
+// Package metrics provides types and functions for generating synthetic OpenTelemetry metrics.
 package metrics
 
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// SumConfig holds configuration for sum metric generation.
 type SumConfig struct {
 	Name        string
 	Description string
@@ -21,7 +22,22 @@ type SumConfig struct {
 	IsMonotonic bool
 }
 
+// SimulateSum generates synthetic sum metrics using the provided configuration and logger.
 func SimulateSum(mp metric.MeterProvider, sumConfig SumConfig, conf *Config, logger *zap.Logger) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	if conf == nil {
+		logger.Error("config is nil, cannot run SimulateSum")
+		return
+	}
+	if conf.Rate < 0 {
+		logger.Error("rate must be non-negative for SimulateSum", zap.Int64("rate", int64(conf.Rate)))
+		return
+	}
+	if conf.Rate == 0 {
+		conf.Rate = 1 // Default to 1 if not set
+	}
 	c := *conf
 	err := run(conf, logger, sum(mp, sumConfig, c, logger))
 	if err != nil {
@@ -39,41 +55,63 @@ func sum(mp metric.MeterProvider, sc SumConfig, c Config, logger *zap.Logger) Wo
 			metric.WithDescription(sc.Description),
 		)
 
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r := NewRand()
 		var exemplars []Exemplar
 		var i int64
-		ticker := time.NewTicker(time.Duration(c.Rate) * time.Second)
-		defer ticker.Stop()
 
-		var cancel context.CancelFunc
-		if c.TotalDuration > 0 {
-			ctx, cancel = context.WithTimeout(ctx, c.TotalDuration)
-			defer cancel()
-		}
-
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Info("Stopping sum generation due to context cancellation")
-				return
-			case <-ticker.C:
-				i++
-				value := i
-				if !sc.IsMonotonic {
-					value = (value % 100) - 50 // Oscillate between -50 and 49
+		if c.Rate == 0 {
+			for {
+				select {
+				case <-ctx.Done():
+					logger.Info("Stopping sum generation due to context cancellation")
+					return
+				default:
+					i++
+					value := i
+					if !sc.IsMonotonic {
+						value = (value % 100) - 50 // Oscillate between -50 and 49
+					}
+					exemplar := generateExemplar(r, float64(value), time.Now())
+					exemplars = append(exemplars, exemplar)
+					if len(exemplars) > 10 {
+						exemplars = exemplars[1:]
+					}
+					logger.Info("generating",
+						zap.String("name", name),
+						zap.Int64("value", value),
+						zap.String("temporality", sc.Temporality.String()),
+						zap.Int("exemplars_count", len(exemplars)),
+					)
+					counter.Add(ctx, value, metric.WithAttributes(sc.Attributes...))
 				}
-				exemplar := generateExemplar(r, float64(value), time.Now())
-				exemplars = append(exemplars, exemplar)
-				if len(exemplars) > 10 {
-					exemplars = exemplars[1:]
+			}
+		} else {
+			ticker := time.NewTicker(time.Second / time.Duration(c.Rate))
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					logger.Info("Stopping sum generation due to context cancellation")
+					return
+				case <-ticker.C:
+					i++
+					value := i
+					if !sc.IsMonotonic {
+						value = (value % 100) - 50 // Oscillate between -50 and 49
+					}
+					exemplar := generateExemplar(r, float64(value), time.Now())
+					exemplars = append(exemplars, exemplar)
+					if len(exemplars) > 10 {
+						exemplars = exemplars[1:]
+					}
+					logger.Info("generating",
+						zap.String("name", name),
+						zap.Int64("value", value),
+						zap.String("temporality", sc.Temporality.String()),
+						zap.Int("exemplars_count", len(exemplars)),
+					)
+					counter.Add(ctx, value, metric.WithAttributes(sc.Attributes...))
 				}
-				logger.Info("generating",
-					zap.String("name", name),
-					zap.Int64("value", value),
-					zap.String("temporality", sc.Temporality.String()),
-					zap.Int("exemplars_count", len(exemplars)),
-				)
-				counter.Add(ctx, value, metric.WithAttributes(sc.Attributes...))
 			}
 		}
 	}

@@ -15,10 +15,8 @@ func genDiagnosticsCommand() *cli.Command {
 				Name:    "network",
 				Usage:   "diagnose a connection to your receiver",
 				Aliases: []string{"net"},
-				Action: func(c *cli.Context) error {
-
+				Action: func(_ *cli.Context) error {
 					logger.Info("Not yet implemented")
-
 					return nil
 				},
 			},

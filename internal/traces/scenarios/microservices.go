@@ -3,7 +3,6 @@ package scenarios
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -12,7 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func MicroservicesScenario(ctx context.Context, tracer trace.Tracer, logger *zap.Logger, serviceName string) error {
+// MicroservicesScenario simulates a complex multi-service trace scenario for testing and demonstration purposes.
+func MicroservicesScenario(ctx context.Context, tracer trace.Tracer, _ *zap.Logger, serviceName string, _ []string) error {
 	services := []string{
 		"api_gateway", "auth_service", "user_service", "product_service", "inventory_service",
 		"order_service", "payment_service", "shipping_service", "notification_service",
@@ -31,20 +31,22 @@ func MicroservicesScenario(ctx context.Context, tracer trace.Tracer, logger *zap
 			semconv.ClientPort(56789),
 			semconv.UserAgentOriginal("ExampleApp/1.0"),
 			semconv.HTTPRequestBodySize(2048),
-			semconv.ServiceNameKey.String(fmt.Sprintf("%s_api_gateway", serviceName)),
+			semconv.ServiceNameKey.String(serviceName+"_api_gateway"),
 		),
 	)
 	defer rootSpan.End()
 
-	for i := 0; i < 100; i++ {
-		microserviceName := services[rand.Intn(len(services))]
-		specificServiceName := fmt.Sprintf("%s_%s", serviceName, microserviceName)
+	r := NewRand()
 
-		_, span := tracer.Start(ctx, fmt.Sprintf("%s_operation", microserviceName),
+	for i := 0; i < 100; i++ {
+		microserviceName := services[r.IntN(len(services))]
+		specificServiceName := serviceName + "_" + microserviceName
+
+		_, span := tracer.Start(ctx, microserviceName+"_operation",
 			trace.WithAttributes(
 				semconv.ServiceNameKey.String(specificServiceName),
-				semconv.ServiceVersionKey.String(fmt.Sprintf("1.%d.0", rand.Intn(10))),
-				semconv.ServiceInstanceIDKey.String(fmt.Sprintf("%s-instance-%d", microserviceName, rand.Intn(5))),
+				semconv.ServiceVersionKey.String(fmt.Sprintf("1.%d.0", r.IntN(10))),
+				semconv.ServiceInstanceIDKey.String(fmt.Sprintf("%s-instance-%d", microserviceName, r.IntN(5))),
 				semconv.ProcessRuntimeNameKey.String("OpenJDK Runtime Environment"),
 				semconv.ProcessRuntimeVersionKey.String("11.0.9+11-Ubuntu-0ubuntu1.20.04"),
 			),
@@ -54,7 +56,7 @@ func MicroservicesScenario(ctx context.Context, tracer trace.Tracer, logger *zap
 		span.AddEvent("operation_started")
 
 		// Simulate some work
-		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		time.Sleep(time.Duration(r.IntN(100)) * time.Millisecond)
 
 		// Add some random attributes based on the service
 		switch microserviceName {
@@ -65,7 +67,7 @@ func MicroservicesScenario(ctx context.Context, tracer trace.Tracer, logger *zap
 			)
 		case "auth_service":
 			span.SetAttributes(
-				semconv.EnduserIDKey.String(fmt.Sprintf("user-%d", rand.Intn(1000))),
+				semconv.EnduserIDKey.String(fmt.Sprintf("user-%d", r.IntN(1000))),
 				semconv.EnduserRoleKey.String("customer"),
 			)
 		case "database_service":
@@ -88,7 +90,7 @@ func MicroservicesScenario(ctx context.Context, tracer trace.Tracer, logger *zap
 			)
 		}
 
-		if rand.Float32() < 0.1 { // 10% chance of an error
+		if r.Float32() < 0.1 { // 10% chance of an error
 			span.SetStatus(codes.Error, "Operation failed")
 			span.RecordError(fmt.Errorf("random error in %s", microserviceName))
 		} else {

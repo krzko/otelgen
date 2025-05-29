@@ -8,10 +8,10 @@ GOMOD=$(GOCMD) mod
 GOLINT=golangci-lint
 
 # Binary name
-BINARY_NAME=otelgen
+BINARY_NAME=trazr-gen
 
 # Main package path
-MAIN_PACKAGE=./cmd/otelgen
+MAIN_PACKAGE=./cmd/trazr-gen
 
 # Build directory
 BUILD_DIR=./build
@@ -22,7 +22,7 @@ SRC=$(shell find . -name "*.go")
 # Test coverage output
 COVERAGE_OUTPUT=coverage.out
 
-.PHONY: all build clean test coverage lint deps tidy run help
+.PHONY: all build clean test coverage lint deps tidy run help integration-coverage
 
 all: build
 
@@ -62,5 +62,9 @@ docker-run: ## Run Docker container
 
 help: ## Display this help screen
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+integration-coverage: ## Run all tests (including integration) with coverage and print total coverage
+	$(GOTEST) -coverprofile=$(COVERAGE_OUTPUT) ./...
+	@echo "\nTotal coverage:" && $(GOCMD) tool cover -func=$(COVERAGE_OUTPUT) | grep total:
 
 .DEFAULT_GOAL := help

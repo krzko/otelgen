@@ -1,10 +1,11 @@
+// Package main is the entry point for the trazr-gen application.
 package main
 
 import (
 	"log"
 	"os"
 
-	"github.com/krzko/otelgen/internal/cli"
+	"github.com/medxops/trazr-gen/internal/cli"
 )
 
 var (

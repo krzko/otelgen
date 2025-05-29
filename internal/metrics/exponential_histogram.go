@@ -2,9 +2,10 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	randv2 "math/rand/v2"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// ExponentialHistogramConfig holds configuration for exponential histogram metrics.
 type ExponentialHistogramConfig struct {
 	Name          string
 	Description   string
@@ -26,6 +28,7 @@ type ExponentialHistogramConfig struct {
 	ZeroThreshold float64
 }
 
+// ExponentialHistogramDataPoint represents a single data point for an exponential histogram metric.
 type ExponentialHistogramDataPoint struct {
 	ID              string
 	Attributes      []attribute.KeyValue
@@ -42,16 +45,35 @@ type ExponentialHistogramDataPoint struct {
 	Exemplars       []Exemplar
 }
 
-func SimulateExponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramConfig, conf *Config, logger *zap.Logger) {
-	c := *conf
-	err := run(conf, logger, exponentialHistogram(mp, config, c, logger))
-	if err != nil {
-		logger.Error("failed to run exponential histogram", zap.Error(err))
+// SimulateExponentialHistogram generates synthetic exponential histogram metrics using the provided configuration and logger.
+func SimulateExponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramConfig, conf *Config, logger *zap.Logger) error {
+	if logger == nil {
+		logger = zap.NewNop()
 	}
+	if conf == nil {
+		return errors.New("config is nil, cannot run SimulateExponentialHistogram")
+	}
+	if err := conf.Validate(); err != nil {
+		logger.Error("invalid config", zap.Error(err))
+		return err
+	}
+	c := *conf
+	if err := run(conf, logger, exponentialHistogram(mp, config, c, logger)); err != nil {
+		return fmt.Errorf("failed to run exponential histogram: %w", err)
+	}
+	return nil
 }
 
 func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramConfig, c Config, logger *zap.Logger) WorkerFunc {
 	return func(ctx context.Context) {
+		if err := c.Validate(); err != nil {
+			logger.Error("invalid config", zap.Error(err))
+			return
+		}
+		if c.Rate <= 0 {
+			logger.Error("rate must be positive")
+			return
+		}
 		name := fmt.Sprintf("%v.metrics.exponential_histogram", c.ServiceName)
 		logger.Debug("generating exponential histogram", zap.String("name", name))
 
@@ -74,10 +96,10 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 			defer cancel()
 		}
 
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r := NewRand()
 
 		startTime := time.Now()
-		var min, max float64
+		var minVal, maxVal float64
 		var zeroCount, totalCount uint64
 		positiveBuckets := make(map[int32]uint64)
 		negativeBuckets := make(map[int32]uint64)
@@ -94,11 +116,11 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 				currentTime := time.Now()
 
 				if config.RecordMinMax {
-					if value < min || totalCount == 0 {
-						min = value
+					if value < minVal || totalCount == 0 {
+						minVal = value
 					}
-					if value > max || totalCount == 0 {
-						max = value
+					if value > maxVal || totalCount == 0 {
+						maxVal = value
 					}
 				}
 
@@ -133,8 +155,8 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 					zap.Uint64("zero_count", zeroCount),
 					zap.Uint64("total_count", totalCount),
 					zap.Float64("sum", sum),
-					zap.Float64("min", min),
-					zap.Float64("max", max),
+					zap.Float64("min", minVal),
+					zap.Float64("max", maxVal),
 					zap.Int("positive_buckets", len(positiveBuckets)),
 					zap.Int("negative_buckets", len(negativeBuckets)),
 					zap.Int("exemplars_count", len(exemplars)),
@@ -151,25 +173,21 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 					ZeroCount:       zeroCount,
 					PositiveBuckets: positiveBuckets,
 					NegativeBuckets: negativeBuckets,
-					Min:             min,
-					Max:             max,
+					Min:             minVal,
+					Max:             maxVal,
 					Exemplars:       exemplars,
 				}
 
-				if value < min || totalCount == 0 {
-					min = value
-				}
-				if value > max || totalCount == 0 {
-					max = value
-				}
+				minVal = value
+				maxVal = value
 
 				// Reset min and max appropriately for delta temporality:
 				if config.Temporality == metricdata.DeltaTemporality {
 					startTime = currentTime
 					totalCount = 0
 					sum = 0
-					min = math.MaxFloat64  // Set to max possible float value for correct min calculation in next round
-					max = -math.MaxFloat64 // Set to min possible value for correct max calculation in next round
+					minVal = math.MaxFloat64  // Set to max possible float value for correct min calculation in next round
+					maxVal = -math.MaxFloat64 // Set to min possible value for correct max calculation in next round
 					zeroCount = 0
 					positiveBuckets = make(map[int32]uint64)
 					negativeBuckets = make(map[int32]uint64)
@@ -182,7 +200,7 @@ func exponentialHistogram(mp metric.MeterProvider, config ExponentialHistogramCo
 	}
 }
 
-func generateExponentialHistogramValue(r *rand.Rand, maxSize, zeroThreshold float64) float64 {
+func generateExponentialHistogramValue(r *randv2.Rand, maxSize, zeroThreshold float64) float64 {
 	// Generate a value using exponential distribution
 	value := r.ExpFloat64() * maxSize / 10
 

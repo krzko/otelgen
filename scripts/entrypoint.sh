@@ -15,4 +15,4 @@ fi
 git config --global --add safe.directory .
 
 # shellcheck disable=SC2068
-exec otelgen $@
+exec trazr-gen $@
